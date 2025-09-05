@@ -1,0 +1,135 @@
+/* Modal.module.css */
+.backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.45);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 2000;
+  }
+  
+  .dialog {
+    background: #fff;
+    padding: 28px 32px;
+    border-radius: 14px;
+    max-width: 360px;
+    width: 100%;
+    box-shadow: 0 12px 28px rgba(0, 0, 0, 0.25);
+    text-align: center;
+  }
+  
+  .dialog h3 {
+    margin: 0 0 8px;
+    font-size: 1.25rem;
+    font-weight: 600;
+  }
+  
+  .dialog p {
+    margin: 0 0 20px;
+    color: #555;
+    font-size: 0.95rem;
+  }
+  
+  .actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+  }
+  
+  .cancelBtn {
+    background: #f3f4f6;
+    border: none;
+    border-radius: 8px;
+    padding: 8px 16px;
+    font-weight: 500;
+    cursor: pointer;
+  }
+  
+  .cancelBtn:hover {
+    background: #e5e7eb;
+  }
+  
+  .logoutBtn {
+    background: linear-gradient(135deg, #4f46e5, #4338ca);
+    border: none;
+    border-radius: 8px;
+    padding: 8px 16px;
+    font-weight: 600;
+    color: #fff;
+    cursor: pointer;
+  }
+  
+  .logoutBtn:hover {
+    background: linear-gradient(135deg, #4338ca, #3730a3);
+  }
+  /* Modal.module.css */
+.overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.55);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 50;
+  }
+  
+  .modal {
+    background: #fff;
+    padding: 28px 32px;
+    border-radius: 14px;
+    box-shadow: 0 8px 28px rgba(0, 0, 0, 0.25);
+    max-width: 420px;
+    width: 100%;
+    text-align: center;
+  
+    /* ✅ force same font as rest of the app */
+    font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+  }
+  
+  .title {
+    font-size: 1.3rem;
+    font-weight: 600;
+    margin-bottom: 10px;
+    color: #0f172a;
+  }
+  
+  .text {
+    color: #475569;
+    margin-bottom: 22px;
+    font-size: 0.95rem;
+  }
+  
+  .actions {
+    display: flex;
+    justify-content: center;
+    gap: 14px;
+  }
+  
+  .btn {
+    padding: 10px 18px;
+    border-radius: 10px;
+    font-weight: 600;
+    border: none;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    font-family: inherit; /* ✅ ensures buttons use the same font */
+  }
+  
+  .btnCancel {
+    background: #f1f5f9;
+    color: #0f172a;
+  }
+  .btnCancel:hover {
+    background: #e2e8f0;
+  }
+  
+  .btnPrimary {
+    background: linear-gradient(135deg, #4f46e5 0%, #4338ca 100%);
+    color: #fff;
+  }
+  .btnPrimary:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 8px 18px rgba(79, 70, 229, 0.35);
+  }
+  

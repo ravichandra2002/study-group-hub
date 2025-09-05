@@ -1,0 +1,69 @@
+/* Navbar.module.css */
+
+.bar {
+    background: #fff;
+    border-bottom: 1px solid #e5e7eb;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.05);
+    position: sticky;
+    top: 0;
+    z-index: 1000;
+  }
+  
+  .inner {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 12px 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  
+  .brand {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-weight: 600;
+    font-size: 1.1rem;
+    color: #0f172a;
+  
+    /* 👇 force same font family as rest of app */
+    font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+  }
+  
+  .badge {
+    width: 28px;
+    height: 28px;
+    border-radius: 8px;
+    background: linear-gradient(135deg, #4f46e5, #06b6d4);
+    flex-shrink: 0;
+  }
+  
+  .btnGhost {
+    background: #fff;
+    border: 1px solid #e5e7eb;
+    padding: 6px 14px;
+    border-radius: 8px;
+    font-size: 0.9rem;
+    cursor: pointer;
+    transition: background .2s, box-shadow .2s;
+  }
+  .btnGhost:hover {
+    background: #f8fafc;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.06);
+  }
+  
+  .btnPrimary {
+    background: linear-gradient(135deg, #4f46e5, #4338ca);
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    padding: 6px 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: transform .1s ease, box-shadow .2s ease;
+  }
+  .btnPrimary:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 6px 16px rgba(79,70,229,0.25);
+  }
+  
