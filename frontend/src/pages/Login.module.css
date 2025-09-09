@@ -1,5 +1,3 @@
-/* Login.module.css */
-
 .page {
     min-height: 90vh;
     display: grid;
@@ -113,4 +111,23 @@
     .wrap { grid-template-columns: 1fr; }
     .hero { order: -1; }
   }
-  
+
+.inputWrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.eyeBtn {
+  position: absolute;
+  right: 12px;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  color: #475569;
+  font-size: 1.1rem;
+}
+
+.eyeBtn:hover {
+  color: #111827;
+}

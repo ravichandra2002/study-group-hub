@@ -1,4 +1,4 @@
-// App.jsx
+
 import { Routes, Route, useLocation } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { toast } from "react-toastify";

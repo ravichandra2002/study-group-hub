@@ -1,349 +1,16 @@
-// import { useEffect, useState } from "react";
-// import { Link, useNavigate } from "react-router-dom";
-// import api from "../lib/api";
-// import { toast } from "react-toastify";
-// import styles from "./Signup.module.css";
-
-// const KENT_RE = /^[^@\s]+@kent\.edu$/i;
-
-// export default function Signup() {
-//   const nav = useNavigate();
-
-//   const [form, setForm] = useState({
-//     fullName: "",
-//     email: "",
-//     password: "",
-//     timezone:
-//       Intl.DateTimeFormat().resolvedOptions().timeZone || "America/New_York",
-
-//     department: "",
-//     program: "Masters",
-//     yearOfStudy: 1,
-//     currentSemester: "",
-
-//     courses: [{ courseCode: "", courseTitle: "" }],
-
-//     studyMode: "Problem-Solving",
-//     meetingMode: "Either",
-//   });
-
-//   const [submitting, setSubmitting] = useState(false);
-
-//   useEffect(() => {
-//     if (localStorage.getItem("token")) nav("/dashboard");
-//   }, [nav]);
-
-//   const setField = (key, val) => setForm((p) => ({ ...p, [key]: val }));
-
-//   // Courses helpers
-//   const updateCourse = (idx, key, val) => {
-//     const copy = [...form.courses];
-//     copy[idx] = { ...copy[idx], [key]: val };
-//     setField("courses", copy);
-//   };
-//   const addCourse = () =>
-//     setField("courses", [...form.courses, { courseCode: "", courseTitle: "" }]);
-//   const removeCourse = (idx) =>
-//     setField("courses", form.courses.filter((_, i) => i !== idx));
-
-//   // Validate before submit
-//   const validate = () => {
-//     if (!form.fullName.trim()) return "Full name is required.";
-//     if (!KENT_RE.test(form.email)) return "Use your @kent.edu email.";
-//     if (!form.password || form.password.length < 6)
-//       return "Password must be at least 6 characters.";
-//     if (!form.timezone) return "Timezone is required.";
-//     if (!form.department.trim()) return "Department is required.";
-//     if (!form.currentSemester.trim()) return "Current semester is required.";
-//     if (!form.courses.length) return "Add at least one course.";
-//     for (const c of form.courses) {
-//       if (!c.courseCode.trim() || !c.courseTitle.trim()) {
-//         return "Each course needs a code and a title.";
-//       }
-//     }
-//     return null;
-//   };
-
-//   const submit = async (e) => {
-//     e.preventDefault();
-//     const err = validate();
-//     if (err) {
-//       toast.error(err);
-//       return;
-//     }
-//     try {
-//       setSubmitting(true);
-//       await api.post("/auth/signup", form);
-//       toast.success("Signup successful! Please login");
-//       nav("/login");
-//     } catch (e) {
-//       toast.error(e?.response?.data?.error || "Signup failed");
-//     } finally {
-//       setSubmitting(false);
-//     }
-//   };
-
-//   return (
-//     <div className={styles.page}>
-//       <div className={styles.wrap}>
-//         {/* Left hero */}
-//         <section className={styles.hero} aria-label="About Study Group Hub">
-//           <div className={styles.brand}>
-//             <span className={styles.badge} />
-//             Study Group Hub
-//           </div>
-//           <h1>Find your study crew.</h1>
-//           <p>
-//             Smart matching by course, availability, and study style. Organize online
-//             sessions with auto-generated meeting links.
-//           </p>
-//         </section>
-
-//         {/* Right card with two columns */}
-//         <section className={styles.card} aria-labelledby="signup-title">
-//           <span id="signup-title" className={styles.title}>
-//             Create account
-//           </span>
-
-//           <form className={styles.formTwoCol} onSubmit={submit} noValidate>
-//             {/* LEFT COLUMN */}
-//             <div className={styles.col}>
-//               <input
-//                 className={styles.input}
-//                 placeholder="Full name"
-//                 aria-label="Full name"
-//                 autoComplete="name"
-//                 value={form.fullName}
-//                 onChange={(e) => setField("fullName", e.target.value)}
-//                 required
-//               />
-
-//               <input
-//                 className={styles.input}
-//                 placeholder="Kent email (yourname@kent.edu)"
-//                 aria-label="Kent email"
-//                 type="email"
-//                 inputMode="email"
-//                 autoComplete="email"
-//                 pattern="^[^@\s]+@kent\.edu$"
-//                 title="Please use your @kent.edu email"
-//                 value={form.email}
-//                 onChange={(e) => setField("email", e.target.value)}
-//                 required
-//               />
-
-//               <input
-//                 className={styles.input}
-//                 placeholder="Password"
-//                 aria-label="Password"
-//                 type="password"
-//                 autoComplete="new-password"
-//                 minLength={6}
-//                 value={form.password}
-//                 onChange={(e) => setField("password", e.target.value)}
-//                 required
-//               />
-
-//               <div>
-//                 <label className={styles.label} htmlFor="tz">
-//                   Timezone
-//                 </label>
-//                 <input
-//                   id="tz"
-//                   className={styles.input}
-//                   aria-label="Timezone"
-//                   value={form.timezone}
-//                   onChange={(e) => setField("timezone", e.target.value)}
-//                   required
-//                 />
-//               </div>
-
-//               <div>
-//                 <label className={styles.label} htmlFor="dept">
-//                   Department
-//                 </label>
-//                 <input
-//                   id="dept"
-//                   className={styles.input}
-//                   placeholder="Computer Science"
-//                   aria-label="Department"
-//                   value={form.department}
-//                   onChange={(e) => setField("department", e.target.value)}
-//                   required
-//                 />
-//               </div>
-//             </div>
-
-//             {/* RIGHT COLUMN */}
-//             <div className={styles.col}>
-//               <div>
-//                 <label className={styles.label} htmlFor="program">
-//                   Program
-//                 </label>
-//                 <select
-//                   id="program"
-//                   className={styles.input}
-//                   aria-label="Program"
-//                   value={form.program}
-//                   onChange={(e) => setField("program", e.target.value)}
-//                 >
-//                   <option>Bachelors</option>
-//                   <option>Masters</option>
-//                   <option>PhD</option>
-//                   <option>Diploma</option>
-//                   <option>Other</option>
-//                 </select>
-//               </div>
-
-//               <div>
-//                 <label className={styles.label} htmlFor="yos">
-//                   Year of Study
-//                 </label>
-//                 <input
-//                   id="yos"
-//                   className={styles.input}
-//                   aria-label="Year of Study"
-//                   type="number"
-//                   min={1}
-//                   max={6}
-//                   value={form.yearOfStudy}
-//                   onChange={(e) =>
-//                     setField("yearOfStudy", Number(e.target.value))
-//                   }
-//                 />
-//               </div>
-
-//               <div>
-//                 <label className={styles.label} htmlFor="semester">
-//                   Current semester
-//                 </label>
-//                 <input
-//                   id="semester"
-//                   className={styles.input}
-//                   placeholder="Fall 2025"
-//                   aria-label="Current semester"
-//                   value={form.currentSemester}
-//                   onChange={(e) => setField("currentSemester", e.target.value)}
-//                   required
-//                 />
-//               </div>
-
-//               {/* Courses */}
-//               <div>
-//                 <label className={styles.label}>Courses this term</label>
-//                 {form.courses.map((c, idx) => (
-//                   <div key={idx} className={styles.courseRow}>
-//                     <input
-//                       className={styles.input}
-//                       placeholder="Course code (CS-502)"
-//                       aria-label={`Course ${idx + 1} code`}
-//                       value={c.courseCode}
-//                       onChange={(e) =>
-//                         updateCourse(idx, "courseCode", e.target.value)
-//                       }
-//                     />
-//                     <input
-//                       className={styles.input}
-//                       placeholder="Title (Algorithms)"
-//                       aria-label={`Course ${idx + 1} title`}
-//                       value={c.courseTitle}
-//                       onChange={(e) =>
-//                         updateCourse(idx, "courseTitle", e.target.value)
-//                       }
-//                     />
-//                     {form.courses.length > 1 && (
-//                       <button
-//                         type="button"
-//                         className={styles.iconBtn}
-//                         onClick={() => removeCourse(idx)}
-//                         aria-label={`Remove course ${idx + 1}`}
-//                         title="Remove course"
-//                       >
-//                         ✕
-//                       </button>
-//                     )}
-//                   </div>
-//                 ))}
-//                 <button
-//                   type="button"
-//                   className={styles.btnSecondary}
-//                   onClick={addCourse}
-//                 >
-//                   + Add course
-//                 </button>
-//               </div>
-
-//               {/* Preferences */}
-//               <div className={styles.twoUp}>
-//                 <div>
-//                   <label className={styles.label} htmlFor="studyMode">
-//                     Study mode
-//                   </label>
-//                   <select
-//                     id="studyMode"
-//                     className={styles.input}
-//                     aria-label="Study mode"
-//                     value={form.studyMode}
-//                     onChange={(e) => setField("studyMode", e.target.value)}
-//                   >
-//                     <option>Problem-Solving</option>
-//                     <option>Discussion</option>
-//                     <option>Quiet-Individual</option>
-//                     <option>Mixed</option>
-//                   </select>
-//                 </div>
-//                 <div>
-//                   <label className={styles.label} htmlFor="meetingMode">
-//                     Meeting mode
-//                   </label>
-//                   <select
-//                     id="meetingMode"
-//                     className={styles.input}
-//                     aria-label="Meeting mode"
-//                     value={form.meetingMode}
-//                     onChange={(e) => setField("meetingMode", e.target.value)}
-//                   >
-//                     <option>Either</option>
-//                     <option>Online</option>
-//                     <option>On-Campus</option>
-//                   </select>
-//                 </div>
-//               </div>
-//             </div>
-
-//             {/* Bottom row (full width) */}
-//             <div className={styles.actions}>
-//               <button
-//                 className={styles.btnPrimary}
-//                 type="submit"
-//                 disabled={submitting}
-//                 aria-busy={submitting ? "true" : "false"}
-//               >
-//                 {submitting ? "Creating..." : "Sign up"}
-//               </button>
-//               <span className={styles.helper}>
-//                 Already have an account? <Link to="/login">Back to login</Link>
-//               </span>
-//             </div>
-//           </form>
-//         </section>
-//       </div>
-//     </div>
-//   );
-// }
-
-
-// src/pages/Signup.jsx
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import api from "../lib/api";
 import { toast } from "react-toastify";
 import styles from "./Signup.module.css";
+import { FaEye, FaEyeSlash } from "react-icons/fa";
 
-// ✅ import department list
 import departments from "../data/departments.json";
 
 const KENT_RE = /^[^@\s]+@kent\.edu$/i;
+// Strong password: 8+ chars, 1 upper, 1 lower, 1 number, 1 special
+const STRONG_PASS_RE =
+  /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/;
 
 export default function Signup() {
   const nav = useNavigate();
@@ -377,9 +44,10 @@ export default function Signup() {
     semesterTerm: defaultTerm,
     semesterYear: new Date().getFullYear(),
     studyMode: "Problem-Solving",
-    meetingMode: "Either"
+    meetingMode: "Either",
   });
 
+  const [showPass, setShowPass] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
@@ -391,8 +59,11 @@ export default function Signup() {
   const validate = () => {
     if (!form.fullName.trim()) return "Full name is required.";
     if (!KENT_RE.test(form.email)) return "Use your @kent.edu email.";
-    if (!form.password || form.password.length < 6)
-      return "Password must be at least 6 characters.";
+
+    if (!STRONG_PASS_RE.test(form.password)) {
+      return "Password must be at least 8 characters and include uppercase, lowercase, number, and special character.";
+    }
+
     if (!form.timezone) return "Timezone is required.";
     if (!form.department.trim()) return "Department is required.";
     if (!form.semesterTerm || !form.semesterYear)
@@ -407,10 +78,9 @@ export default function Signup() {
 
     try {
       setSubmitting(true);
-
       const payload = {
         ...form,
-        currentSemester: `${form.semesterTerm} ${form.semesterYear}`
+        currentSemester: `${form.semesterTerm} ${form.semesterYear}`,
       };
       delete payload.semesterTerm;
       delete payload.semesterYear;
@@ -428,6 +98,7 @@ export default function Signup() {
   return (
     <div className={styles.page}>
       <div className={styles.wrap}>
+        {/* Left hero */}
         <section className={styles.hero} aria-label="About Study Group Hub">
           <div className={styles.brand}>
             <span className={styles.badge} />
@@ -440,6 +111,7 @@ export default function Signup() {
           </p>
         </section>
 
+        {/* Form card */}
         <section className={styles.card} aria-labelledby="signup-title">
           <span id="signup-title" className={styles.title}>
             Create account
@@ -454,6 +126,7 @@ export default function Signup() {
                 value={form.fullName}
                 onChange={(e) => setField("fullName", e.target.value)}
                 required
+                autoComplete="name"
               />
 
               <input
@@ -463,17 +136,37 @@ export default function Signup() {
                 value={form.email}
                 onChange={(e) => setField("email", e.target.value)}
                 required
+                autoComplete="email"
+                pattern="^[^@\s]+@kent\.edu$"
+                title="Please use your @kent.edu email"
               />
 
-              <input
-                className={styles.input}
-                placeholder="Password"
-                type="password"
-                minLength={6}
-                value={form.password}
-                onChange={(e) => setField("password", e.target.value)}
-                required
-              />
+              {/* Password with eye toggle */}
+<div className={styles.inputWrap}>
+  <input
+    className={styles.input}
+    placeholder="Password"
+    type={showPass ? "text" : "password"}
+    value={form.password}
+    onChange={(e) => setField("password", e.target.value)}
+    required
+    autoComplete="new-password"
+    pattern="^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d)(?=.*[@$!%*?&])[A-Za-z\\d@$!%*?&]{8,}$"
+    title="Minimum 8 chars with uppercase, lowercase, number, and special character"
+  />
+  <button
+    type="button"
+    className={styles.eyeBtn}
+    aria-label={showPass ? "Hide password" : "Show password"}
+    onClick={() => setShowPass((s) => !s)}
+  >
+    {showPass ? <FaEyeSlash /> : <FaEye />}
+  </button>
+</div>
+
+<small className={styles.hint}>
+  Minimum 8 characters with uppercase, lowercase, number, and special character.
+</small>
 
               <div>
                 <label className={styles.label} htmlFor="tz">
