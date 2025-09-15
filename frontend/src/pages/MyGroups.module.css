@@ -1,0 +1,161 @@
+/* Simple, clean styles to match your Dashboard look */
+
+:root {
+  --bg: #f7f8fc;
+  --card: #ffffff;
+  --text: #0f172a;
+  --muted: #64748b;
+  --indigo: #4f46e5;
+  --indigo-600: #4f46e5;
+  --indigo-700: #4338ca;
+  --border: #e5e7eb;
+  --red-50: #fef2f2;
+  --red-500: #ef4444;
+  --red-600: #dc2626;
+  --ring: rgba(79, 70, 229, 0.15);
+  --shadow: 0 8px 30px rgba(0, 0, 0, 0.06);
+}
+
+.container {
+  max-width: 1120px;
+  margin: 0 auto;
+  padding: 40px 24px 64px;
+}
+
+.headerRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 28px;
+}
+
+.h1 {
+  font-size: 40px;
+  line-height: 1.1;
+  font-weight: 800;
+  color: var(--text);
+  letter-spacing: -0.02em;
+}
+
+.actions {
+  display: flex;
+  gap: 10px;
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  font-weight: 600;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all .18s ease;
+  text-decoration: none;
+}
+
+.btn:focus {
+  outline: none;
+  box-shadow: 0 0 0 6px var(--ring);
+}
+
+.btnGhost {
+  background: #eef2ff;
+  color: var(--indigo-700);
+}
+.btnGhost:hover {
+  background: #e0e7ff;
+}
+
+.btnPrimary {
+  background: var(--indigo-600);
+  color: #fff;
+}
+.btnPrimary:hover {
+  background: var(--indigo-700);
+}
+
+.empty {
+  border: 1px dashed var(--border);
+  border-radius: 18px;
+  padding: 28px;
+  color: var(--muted);
+  background: #fff;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 16px;
+}
+@media (min-width: 900px) {
+  .grid {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+.card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  padding: 18px 18px 16px;
+  box-shadow: var(--shadow);
+}
+
+.cardHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.titleRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  background: radial-gradient(circle at 30% 30%, #60a5fa, #3b82f6);
+  box-shadow: 0 0 0 3px rgba(59,130,246,.15);
+}
+
+.title {
+  font-size: 20px;
+  font-weight: 800;
+  color: var(--text);
+  letter-spacing: -0.01em;
+}
+
+.meta {
+  margin-top: 2px;
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.desc {
+  margin-top: 8px;
+  color: #334155;
+  font-size: 14px;
+}
+
+.cardActions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.deleteBtn {
+  background: var(--red-50);
+  color: var(--red-600);
+  border: 1px solid rgba(239, 68, 68, .2);
+}
+.deleteBtn:hover {
+  background: #fee2e2;
+  border-color: rgba(239, 68, 68, .35);
+}

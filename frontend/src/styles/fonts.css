@@ -1,0 +1,30 @@
+:root{
+  --font-sans: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial,
+               "Apple Color Emoji","Segoe UI Emoji","Segoe UI Symbol";
+}
+
+/* apply everywhere */
+html {
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  font-feature-settings: "liga" 1, "calt" 1, "kern";
+}
+
+/* make sure form controls inherit */
+body, input, button, select, textarea {
+  font-family: inherit;
+}
+
+/* tidy default headings to match your mock */
+h1 { font-weight: 800; letter-spacing: -0.02em; }
+h2 { font-weight: 800; letter-spacing: -0.01em; }
+h3 { font-weight: 700; }
+strong,b { font-weight: 700; }
+
+/* React-Toastify inherits the font too */
+.Toastify__toast,
+.Toastify__toast-body {
+  font-family: inherit !important;
+}

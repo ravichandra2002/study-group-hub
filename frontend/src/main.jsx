@@ -3,6 +3,8 @@ import ReactDOM from "react-dom/client";
 import { BrowserRouter } from "react-router-dom";
 import App from "./App.jsx";
 import "./styles.css";  
+import "./styles/fonts.css";
+
 
 // Toastify imports
 import { ToastContainer } from "react-toastify";

@@ -3,13 +3,13 @@ import { Link, useNavigate } from "react-router-dom";
 import api from "../lib/api";
 import { toast } from "react-toastify";
 import styles from "./Login.module.css";
-import { FaEye, FaEyeSlash } from "react-icons/fa";  // 👁️ icons
+import { FaEye, FaEyeSlash } from "react-icons/fa";  
 
 export default function Login() {
   const nav = useNavigate();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [showPass, setShowPass] = useState(false); // 👁️ toggle
+  const [showPass, setShowPass] = useState(false); 
 
   useEffect(() => {
     if (localStorage.getItem("token")) nav("/dashboard", { replace: true });

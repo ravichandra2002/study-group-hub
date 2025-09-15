@@ -1,0 +1,14 @@
+.page { padding:28px; }
+.h1 { font-size:1.6rem; font-weight:700; margin:8px 0 18px; }
+.grid { display:grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap:14px; }
+.dayCard { background:#fff; border:1px solid #e5e7eb; border-radius:14px; padding:14px; box-shadow:0 8px 20px rgba(2,6,23,.06); }
+.dayHead { display:flex; align-items:center; justify-content:space-between; margin-bottom:8px; }
+.badge { background:linear-gradient(135deg,#4f46e5,#06b6d4); color:#fff; font-weight:700; border-radius:999px; padding:4px 10px; }
+.add { border:1px solid #e5e7eb; background:#f8fafc; border-radius:10px; padding:6px 10px; font-weight:600; }
+.empty { color:#94a3b8; font-size:.9rem; }
+.row { display:flex; align-items:center; gap:8px; margin-bottom:6px; }
+.row input[type="time"] { padding:6px 8px; border:1px solid #e5e7eb; border-radius:8px; }
+.to { color:#64748b; font-size:.9rem; }
+.remove { background:#fee2e2; border:1px solid #fecaca; color:#991b1b; border-radius:8px; padding:6px 10px; }
+.actions { display:flex; justify-content:flex-start; margin-top:14px; }
+.btnPrimary { background:linear-gradient(135deg,#4f46e5,#4338ca); color:#fff; border:0; border-radius:10px; padding:10px 14px; font-weight:600; }
