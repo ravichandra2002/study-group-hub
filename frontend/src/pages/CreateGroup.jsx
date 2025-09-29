@@ -165,8 +165,7 @@ const input = {
 
 const twoUp = {
   display: "grid",
-  gridTemplateColumns: "1fr",  // stack by default
-  gap: 12,
+  gridTemplateColumns: "1fr",  
 };
 
 const actions = { display: "flex", gap: 10, marginTop: 8 };

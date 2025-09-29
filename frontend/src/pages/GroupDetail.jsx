@@ -75,7 +75,7 @@ export default function GroupDetail() {
     }
   };
 
-  // mark "You"
+
   const isSelf = (m) => {
     const mid = String(m?._id ?? m?.id ?? m?.userId ?? "");
     if (myId && mid && myId === mid) return true;
