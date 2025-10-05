@@ -1,4 +1,4 @@
-import { Routes, Route, useLocation, useNavigate, Link } from "react-router-dom";
+import { Routes, Route, useLocation, useNavigate, Link, Navigate } from "react-router-dom";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "react-toastify";
 
@@ -7,6 +7,7 @@ import Signup from "./pages/Signup.jsx";
 import Dashboard from "./pages/Dashboard.jsx";
 import MyGroups from "./pages/MyGroups.jsx";
 import GroupDetail from "./pages/GroupDetail.jsx";
+import GroupPolls from "./pages/GroupPolls.jsx"; // ensure extension matches your file
 import ProtectedRoute from "./components/ProtectedRoute.jsx";
 import BrowseOpenGroups from "./pages/BrowseOpenGroups.jsx";
 import CreateGroup from "./pages/CreateGroup.jsx";
@@ -25,7 +26,6 @@ export default function App() {
   const [isAuthed, setIsAuthed] = useState(!!localStorage.getItem("token"));
   useEffect(() => setIsAuthed(!!localStorage.getItem("token")), [location]);
 
-
   const [user, setUser] = useState(() => {
     try {
       return JSON.parse(localStorage.getItem("user") || "{}");
@@ -41,7 +41,6 @@ export default function App() {
     }
   }, [location, isAuthed]);
 
-
   const myId = useMemo(
     () => user?.id || user?._id || user?.uid || user?.userId || null,
     [user]
@@ -55,7 +54,7 @@ export default function App() {
       notifySocket.removeAllListeners();
       notifySocket.disconnect();
     } catch {
-
+      /* noop */
     }
     localStorage.removeItem("token");
     localStorage.removeItem("user");
@@ -72,7 +71,6 @@ export default function App() {
   // refs for click-outside
   const bellBtnRef = useRef(null);
   const dropdownRef = useRef(null);
-
 
   const textFrom = (p) => {
     if (!p) return "";
@@ -103,7 +101,6 @@ export default function App() {
     return out.slice(0, 50);
   };
 
-
   const loadPersistedNotifs = async () => {
     try {
       const res = await api.get("/groups/notifications"); // returns recent 50
@@ -122,7 +119,6 @@ export default function App() {
       // ignore; dropdown will just show “No notifications”.
     }
   };
-
 
   const attachSocketHandlers = () => {
     const onConnect = () => {
@@ -164,7 +160,6 @@ export default function App() {
     };
   };
 
-  
   useEffect(() => {
     if (!isAuthed || !myId) {
       notifySocket.removeAllListeners();
@@ -219,7 +214,6 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAuthed, myId]);
 
-
   const toggleMenu = async () => {
     const next = !menuOpen;
     setMenuOpen(next);
@@ -248,9 +242,7 @@ export default function App() {
     };
   }, [menuOpen]);
 
-
   useEffect(() => setMenuOpen(false), [location]);
-
 
   const clearNotifs = async () => {
     try {
@@ -416,6 +408,7 @@ export default function App() {
       <Routes>
         <Route path="/login" element={<Login />} />
         <Route path="/signup" element={<Signup />} />
+
         <Route
           path="/dashboard"
           element={
@@ -424,6 +417,7 @@ export default function App() {
             </ProtectedRoute>
           }
         />
+
         <Route
           path="/my-groups"
           element={
@@ -432,6 +426,7 @@ export default function App() {
             </ProtectedRoute>
           }
         />
+
         <Route
           path="/create"
           element={
@@ -440,6 +435,7 @@ export default function App() {
             </ProtectedRoute>
           }
         />
+
         <Route
           path="/group/:gid"
           element={
@@ -448,6 +444,17 @@ export default function App() {
             </ProtectedRoute>
           }
         />
+
+        {/* Dedicated polls page */}
+        <Route
+          path="/group/:gid/polls"
+          element={
+            <ProtectedRoute>
+              <GroupPolls />
+            </ProtectedRoute>
+          }
+        />
+
         <Route
           path="/browse"
           element={
@@ -456,8 +463,14 @@ export default function App() {
             </ProtectedRoute>
           }
         />
-        <Route path="*" element={isAuthed ? <Dashboard /> : <Login />} />
+
+        {/* Root redirect */}
+        <Route path="/" element={<Navigate to={isAuthed ? "/dashboard" : "/login"} replace />} />
+
+        {/* Fallback */}
+        <Route path="*" element={<Navigate to={isAuthed ? "/dashboard" : "/login"} replace />} />
       </Routes>
     </>
   );
 }
+ 

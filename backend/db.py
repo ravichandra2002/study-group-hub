@@ -1,91 +1,90 @@
 # backend/db.py
 import os
-from urllib.parse import urlparse, parse_qs
 from functools import lru_cache
+from urllib.parse import urlparse
 from flask import g
 from pymongo import MongoClient, ASCENDING, DESCENDING
+from helpers import university_from_email, tenant_from_request
 
-# --------------------------
-# Connection & DB selection
-# --------------------------
+# ----------------- Client -----------------
 
-def _db_name_from_uri(uri: str) -> str:
-    """
-    Extract db name from Mongo URI (e.g. .../study_group_hub?...)
-    If none present, fall back to MONGO_DB_NAME env, else 'study_group_hub'.
-    """
+def _default_db_name_from_uri(uri: str) -> str:
     try:
         parsed = urlparse(uri)
-        # path => '/dbname' when provided
         if parsed.path and len(parsed.path) > 1:
-            # strip leading '/' and any trailing slashes
-            path = parsed.path.strip("/")
-            # in case something like '/dbname/extra' (rare), take first part
-            return path.split("/")[0]
+            return parsed.path.strip("/").split("/")[0]
     except Exception:
         pass
     return os.getenv("MONGO_DB_NAME", "study_group_hub")
 
-
 @lru_cache(maxsize=1)
 def _client() -> MongoClient:
-    uri = os.getenv("MONGO_URI") or getattr(__import__("config").Config, "MONGO_URI", None)
+    uri = os.getenv("MONGO_URI") or ""
     if not uri:
-        raise RuntimeError("MONGO_URI is not set. Check backend/.env")
-    return MongoClient(uri)
+        uri = "mongodb://127.0.0.1:27017/study_group_hub"
+    return MongoClient(uri, uuidRepresentation="standard")
 
+# ----------------- Per-tenant DB helpers -----------------
 
-@lru_cache(maxsize=1)
-def _db_name() -> str:
-    uri = os.getenv("MONGO_URI") or getattr(__import__("config").Config, "MONGO_URI", None)
-    return _db_name_from_uri(uri or "")
+def client() -> MongoClient:
+    return _client()
 
+def db_name_for_tenant(tenant: str) -> str:
+    return f"study_group_hub_{tenant}"
+
+def db_for_tenant(tenant: str):
+    return client()[db_name_for_tenant(tenant)]
+
+def db_for_email(email: str):
+    """
+    Use during signup/login before you have a JWT.
+    Raises ValueError if email is not a university email.
+    """
+    _, tenant, dbname = university_from_email(email)
+    return client()[dbname]
+
+def bind_request_db():
+    """
+    Bind g.db for authed requests using the tenant in JWT (if present).
+    Falls back to default DB so public routes keep working.
+    """
+    t = tenant_from_request()
+    if t:
+        g.db = db_for_tenant(t)
+    else:
+        # legacy fallback (single-tenant)
+        if "db" not in g:
+            uri = os.getenv("MONGO_URI", "")
+            g.db = client()[_default_db_name_from_uri(uri)]
+
+# ----------------- Public API -----------------
 
 def get_db():
-    """
-    Returns a per-request handle to the configured database (cached on flask.g).
-    The underlying MongoClient is shared (memoized) across requests.
-    """
     if "db" not in g:
-        g.db = _client()[_db_name()]
+        bind_request_db()
     return g.db
 
-
 def close_db(e=None):
-    """
-    We keep the global client alive; nothing to close per request.
-    Clearing g.db is enough.
-    """
     g.pop("db", None)
 
-
-# --------------------------
-# Optional: bootstrap indexes
-# --------------------------
-
+# --- bootstrap helpers (same as before) ---
 def ensure_user_indexes(db):
-    # Unique index for email; safe to call repeatedly.
-    db.users.create_index("email", unique=True, background=True)
-
-
-def ensure_group_indexes(db):
-    """
-    Ensures the study_groups collection exists and has useful indexes.
-    Using unnamed indexes keeps them idempotent even if they already exist
-    under the default name (e.g., ownerId_1).
-    """
-    # Calling create_index implicitly creates the collection if it doesn't exist.
-    db.study_groups.create_index([("ownerId", ASCENDING)], background=True)
-    db.study_groups.create_index([("members._id", ASCENDING)], background=True)
-    db.study_groups.create_index([("isOpen", ASCENDING), ("createdAt", DESCENDING)], background=True)
-    # Text search (title, course). Different clusters can error if a text index
-    # already exists with another definition; ignore in that case.
     try:
-        db.study_groups.create_index([("title", "text"), ("course", "text")], background=True)
+        db.users.create_index("email", unique=True, background=True)
     except Exception:
         pass
 
-
-# Handy helper for a quick health/debug route (optional)
-def list_collections(db):
-    return sorted(db.list_collection_names())
+def ensure_group_indexes(db):
+    try:
+        db.study_groups.create_index([("ownerId", ASCENDING)], background=True)
+        db.study_groups.create_index([("members._id", ASCENDING)], background=True)
+        db.study_groups.create_index(
+            [("isOpen", ASCENDING), ("createdAt", DESCENDING)],
+            background=True,
+        )
+        try:
+            db.study_groups.create_index([("title", "text"), ("course", "text")], background=True)
+        except Exception:
+            pass
+    except Exception:
+        pass

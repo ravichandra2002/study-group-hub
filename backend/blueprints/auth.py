@@ -1,23 +1,23 @@
+# backend/blueprints/auth.py
 from flask import Blueprint, request, jsonify
 from flask_jwt_extended import create_access_token
 from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import timedelta, datetime
-from db import get_db
 from pymongo.errors import DuplicateKeyError, PyMongoError
-import re
+
+from db import get_db, db_for_email, ensure_user_indexes
+from helpers import university_from_email
 
 auth_bp = Blueprint("auth", __name__, url_prefix="/api/auth")
 
-# Only allow @kent.edu emails
-KENT_EMAIL_RE = re.compile(r"^[^@\s]+@kent\.edu$", re.IGNORECASE)
-
 # Strong password: 8+ chars, 1 upper, 1 lower, 1 number, 1 special
+import re
 STRONG_PASS_RE = re.compile(
     r"^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$"
 )
 
 def ensure_indexes(db):
-    """Idempotent index creation."""
+    """Idempotent index creation (kept for local use)."""
     db.users.create_index("email", unique=True)
 
 @auth_bp.post("/signup")
@@ -34,7 +34,6 @@ def signup():
         department = (data.get("department") or "").strip()
         program = (data.get("program") or "Masters").strip()
 
-        # Convert yearOfStudy to int safely
         try:
             yearOfStudy = int(data.get("yearOfStudy") or 1)
         except (ValueError, TypeError):
@@ -43,7 +42,6 @@ def signup():
         studyMode = (data.get("studyMode") or "Problem-Solving").strip()
         meetingMode = (data.get("meetingMode") or "Either").strip()
 
-        # Accept either combined "currentSemester" or split "semesterTerm"/"semesterYear"
         currentSemester = (data.get("currentSemester") or "").strip()
         if not currentSemester:
             term = (data.get("semesterTerm") or "").strip()
@@ -54,8 +52,13 @@ def signup():
         # ---- Validation ----
         if not fullName:
             return jsonify({"ok": False, "error": "Full name is required"}), 400
-        if not KENT_EMAIL_RE.match(email):
-            return jsonify({"ok": False, "error": "Use your @kent.edu email"}), 400
+
+        # Derive (and validate) university -> tenant/db
+        try:
+            domain, tenant, _db_name = university_from_email(email)
+        except ValueError as ve:
+            return jsonify({"ok": False, "error": str(ve)}), 400
+
         if not STRONG_PASS_RE.match(password):
             return jsonify({
                 "ok": False,
@@ -68,8 +71,10 @@ def signup():
         if not currentSemester:
             return jsonify({"ok": False, "error": "Current semester is required"}), 400
 
-        db = get_db()
+        # ---- Use tenant-specific DB ----
+        db = db_for_email(email)
         ensure_indexes(db)
+        ensure_user_indexes(db)   # keep your global helper too
 
         doc = {
             "fullName": fullName,
@@ -85,7 +90,9 @@ def signup():
             "studyMode": studyMode,
             "meetingMode": meetingMode,
 
-            # sensible defaults for later features
+            "domain": domain,
+            "tenant": tenant,
+
             "availability": {
                 "mon": [], "tue": [], "wed": [], "thu": [], "fri": [], "sat": [], "sun": []
             },
@@ -103,7 +110,28 @@ def signup():
         except DuplicateKeyError:
             return jsonify({"ok": False, "error": "Email already registered"}), 409
 
-        return jsonify({"ok": True, "message": "Signup successful"}), 201
+        # token with tenant claim
+        token = create_access_token(
+            identity=str(doc["_id"]),
+            expires_delta=timedelta(days=7),
+            additional_claims={"tenant": tenant, "email": email}
+        )
+
+        return jsonify({
+            "ok": True,
+            "message": "Signup successful",
+            "token": token,
+            "user": {
+                "id": str(doc["_id"]),
+                "name": fullName,
+                "email": email,
+                "tenant": tenant,
+                "department": department,
+                "program": program,
+                "studyMode": studyMode,
+                "meetingMode": meetingMode,
+            }
+        }), 201
 
     except PyMongoError as e:
         return jsonify({"ok": False, "error": f"Database error: {str(e)}"}), 500
@@ -121,26 +149,35 @@ def login():
         if not email or not password:
             return jsonify({"ok": False, "error": "Missing email or password"}), 400
 
-        db = get_db()
+        # pick tenant DB via email domain
+        try:
+            domain, tenant, _db_name = university_from_email(email)
+        except ValueError:
+            return jsonify({"ok": False, "error": "Use your university email"}), 400
+
+        db = db_for_email(email)
         user = db.users.find_one({"email": email})
 
         if not user or not check_password_hash(user.get("password_hash", ""), password):
             return jsonify({"ok": False, "error": "Invalid credentials"}), 401
 
-        # mark last login
         db.users.update_one({"_id": user["_id"]}, {"$set": {"lastLoginAt": datetime.utcnow()}})
 
-        token = create_access_token(identity=str(user["_id"]), expires_delta=timedelta(days=7))
+        token = create_access_token(
+            identity=str(user["_id"]),
+            expires_delta=timedelta(days=7),
+            additional_claims={"tenant": tenant, "email": email}
+        )
 
-        # keep compatibility with frontend expecting "name"
         ui_name = user.get("fullName") or user.get("name") or ""
         return jsonify({
             "ok": True,
             "token": token,
             "user": {
-                "id": str(user["_id"]),           
+                "id": str(user["_id"]),
                 "name": ui_name,
                 "email": user["email"],
+                "tenant": tenant,
                 "department": user.get("department"),
                 "program": user.get("program"),
                 "studyMode": user.get("studyMode"),

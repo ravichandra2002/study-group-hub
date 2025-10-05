@@ -1,3 +1,4 @@
+// frontend/src/pages/Signup.jsx
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import api from "../lib/api";
@@ -7,7 +8,37 @@ import { FaEye, FaEyeSlash } from "react-icons/fa";
 
 import departments from "../data/departments.json";
 
-const KENT_RE = /^[^@\s]+@kent\.edu$/i;
+// --- Email + password validators -------------------------------------------
+const FREE_MAIL = new Set([
+  "gmail.com", "googlemail.com",
+  "yahoo.com", "ymail.com",
+  "outlook.com", "hotmail.com", "live.com", "msn.com",
+  "icloud.com", "me.com", "mac.com",
+  "proton.me", "protonmail.com",
+  "aol.com", "gmx.com", "yandex.com",
+  "zoho.com", "mail.com",
+]);
+
+function extractDomain(email = "") {
+  const idx = email.indexOf("@");
+  if (idx === -1) return "";
+  return email.slice(idx + 1).trim().toLowerCase();
+}
+
+function isAcademicDomain(domain = "") {
+  if (!domain) return false;
+  if (FREE_MAIL.has(domain)) return false;
+  // allow *.edu or *.edu.* or *.ac.*
+  if (domain.endsWith(".edu") || domain.includes(".edu.")) return true;
+  if (domain.includes(".ac.")) return true;
+  return false;
+}
+
+function isAcademicEmail(email = "") {
+  const domain = extractDomain(email);
+  return isAcademicDomain(domain);
+}
+
 // Strong password: 8+ chars, 1 upper, 1 lower, 1 number, 1 special
 const STRONG_PASS_RE =
   /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/;
@@ -58,7 +89,10 @@ export default function Signup() {
 
   const validate = () => {
     if (!form.fullName.trim()) return "Full name is required.";
-    if (!KENT_RE.test(form.email)) return "Use your @kent.edu email.";
+
+    if (!isAcademicEmail(form.email)) {
+      return "Please use your university email (e.g., *.edu or *.ac.*). Personal emails like Gmail/Outlook/Yahoo are not allowed.";
+    }
 
     if (!STRONG_PASS_RE.test(form.password)) {
       return "Password must be at least 8 characters and include uppercase, lowercase, number, and special character.";
@@ -129,44 +163,51 @@ export default function Signup() {
                 autoComplete="name"
               />
 
-              <input
-                className={styles.input}
-                placeholder="Kent email (yourname@kent.edu)"
-                type="email"
-                value={form.email}
-                onChange={(e) => setField("email", e.target.value)}
-                required
-                autoComplete="email"
-                pattern="^[^@\s]+@kent\.edu$"
-                title="Please use your @kent.edu email"
-              />
+              <div className={styles.inputWrap}>
+                <input
+                  className={styles.input}
+                  placeholder="University email (e.g., yourname@kent.edu or ab123@cam.ac.uk)"
+                  type="email"
+                  value={form.email}
+                  onChange={(e) => setField("email", e.target.value)}
+                  required
+                  autoComplete="email"
+                  title="Use your university email (*.edu or *.ac.*). No Gmail/Outlook/Yahoo."
+                />
+              </div>
+              <small className={styles.hint}>
+                Use your university email (e.g., <code>*.edu</code> or{" "}
+                <code>*.ac.*</code>). Personal providers like Gmail, Outlook,
+                Yahoo are not accepted.
+              </small>
 
               {/* Password with eye toggle */}
-<div className={styles.inputWrap}>
-  <input
-    className={styles.input}
-    placeholder="Password"
-    type={showPass ? "text" : "password"}
-    value={form.password}
-    onChange={(e) => setField("password", e.target.value)}
-    required
-    autoComplete="new-password"
-    pattern="^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d)(?=.*[@$!%*?&])[A-Za-z\\d@$!%*?&]{8,}$"
-    title="Minimum 8 chars with uppercase, lowercase, number, and special character"
-  />
-  <button
-    type="button"
-    className={styles.eyeBtn}
-    aria-label={showPass ? "Hide password" : "Show password"}
-    onClick={() => setShowPass((s) => !s)}
-  >
-    {showPass ? <FaEyeSlash /> : <FaEye />}
-  </button>
-</div>
+              <div className={styles.inputWrap}>
+                <input
+                  className={styles.input}
+                  placeholder="Password"
+                  type={showPass ? "text" : "password"}
+                  value={form.password}
+                  onChange={(e) => setField("password", e.target.value)}
+                  required
+                  autoComplete="new-password"
+                  pattern="^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d)(?=.*[@$!%*?&])[A-Za-z\\d@$!%*?&]{8,}$"
+                  title="Minimum 8 chars with uppercase, lowercase, number, and special character"
+                />
+                <button
+                  type="button"
+                  className={styles.eyeBtn}
+                  aria-label={showPass ? "Hide password" : "Show password"}
+                  onClick={() => setShowPass((s) => !s)}
+                >
+                  {showPass ? <FaEyeSlash /> : <FaEye />}
+                </button>
+              </div>
 
-<small className={styles.hint}>
-  Minimum 8 characters with uppercase, lowercase, number, and special character.
-</small>
+              <small className={styles.hint}>
+                Minimum 8 characters with uppercase, lowercase, number, and
+                special character.
+              </small>
 
               <div>
                 <label className={styles.label} htmlFor="tz">

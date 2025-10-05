@@ -1,42 +1,106 @@
-
+# backend/app.py
 from datetime import datetime
 import os
+import traceback
 
-from flask import Flask, jsonify, current_app
+from flask import Flask, jsonify, current_app, Blueprint
 from flask_cors import CORS
-from flask_jwt_extended import JWTManager, jwt_required, get_jwt_identity
+from flask_jwt_extended import (
+    JWTManager, jwt_required, get_jwt_identity, verify_jwt_in_request
+)
 from flask_socketio import SocketIO
 
 from config import Config
-from db import get_db, close_db
-from blueprints.auth import auth_bp, ensure_indexes as ensure_user_indexes
-from blueprints.groups import groups_bp, ensure_group_collection
+from db import (
+    get_db, close_db, ensure_user_indexes, ensure_group_indexes, bind_request_db
+)
 from sockets import ChatNamespace
+
+
+def _register_blueprints(app: Flask) -> None:
+    # ---- auth (optional; stub is fine) ------------------------------------
+    try:
+        from blueprints.auth import auth_bp  # type: ignore
+        app.register_blueprint(auth_bp)
+    except Exception as e:
+        print("[app] auth blueprint missing, installing stub:", e)
+        auth_bp = Blueprint("auth_stub", __name__, url_prefix="/api/auth")
+
+        @auth_bp.get("/health")
+        def auth_health():
+            return jsonify({"ok": True}), 200
+
+        app.register_blueprint(auth_bp)
+
+    # ---- groups (REQUIRED; try two locations; NO STUB) --------------------
+    last_err = None
+    for path in ("blueprints.groups", "groups"):
+        try:
+            mod = __import__(path, fromlist=["groups_bp"])
+            app.register_blueprint(mod.groups_bp)  # type: ignore
+            print(f"[app] registered groups blueprint from {path}")
+            break
+        except Exception as e:
+            last_err = e
+            print(f"[app] could not import {path}: {e}")
+            traceback.print_exc()
+    else:
+        raise RuntimeError(
+            "FATAL: Could not import a real groups blueprint. "
+            "Put your file at backend/blueprints/groups.py (with groups_bp) "
+            "or at backend/groups.py."
+        ) from last_err
+
+    # ---- /api/me (optional; stub is fine) ---------------------------------
+    try:
+        from routes_me import me_bp  # type: ignore
+        app.register_blueprint(me_bp)
+    except Exception:
+        try:
+            from blueprints.me import me_bp as _me_bp  # type: ignore
+            app.register_blueprint(_me_bp)
+        except Exception as e:
+            print("[app] me blueprint missing, installing stub:", e)
+            me_bp = Blueprint("me_stub", __name__, url_prefix="/api/me")
+
+            @me_bp.get("/prefs")
+            def get_prefs_stub():
+                return jsonify({"meetingMode": "either"}), 200
+
+            @me_bp.post("/prefs")
+            def set_prefs_stub():
+                return jsonify({"ok": True, "meetingMode": "either"}), 200
+
+            app.register_blueprint(me_bp)
 
 
 def create_app() -> Flask:
     app = Flask(__name__)
     app.config.from_object(Config)
 
+    # ----- CORS (Vite runs on :5173) --------------------------------------
     client_origin = app.config.get("CLIENT_ORIGIN") or os.environ.get(
         "CLIENT_ORIGIN", "http://localhost:5173"
     )
-
     CORS(
         app,
         resources={r"/api/*": {"origins": [client_origin]}},
-        allow_headers=["Content-Type", "Authorization"],
-        expose_headers=["Content-Type", "Authorization"],
-        supports_credentials=False,
+        methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+        allow_headers=["Authorization", "Content-Type"],
+        expose_headers=["Authorization", "Content-Type", "Content-Disposition"],
+        supports_credentials=False,  # we use Authorization header, not cookies
     )
 
-    # JWT
+    # ----- JWT -------------------------------------------------------------
     JWTManager(app)
 
-    # Blueprints
-    app.register_blueprint(auth_bp)
-    app.register_blueprint(groups_bp)
+    # Bind tenant DB (based on JWT) on every request. Public routes still OK.
+    @app.before_request
+    def _bind_db():
+        verify_jwt_in_request(optional=True)
+        bind_request_db()
 
+    # Health
     @app.get("/")
     def index():
         return "Backend is working!", 200
@@ -45,7 +109,7 @@ def create_app() -> Flask:
     def health():
         return jsonify({"ok": True}), 200
 
-    # Debug route to test a socket notify to the current user
+    # Debug: push a WS notify to the current user
     @app.get("/api/__debug/ping")
     @jwt_required()
     def debug_ping():
@@ -53,21 +117,9 @@ def create_app() -> Flask:
             uid = get_jwt_identity()
             room = f"user:{str(uid)}"
             sio = current_app.extensions.get("socketio")
-            if sio is None:
-                # Fallback import avoids circular refs in some runners
-                try:
-                    from app import socketio as sio  # type: ignore
-                except Exception:
-                    sio = None
-
             if not sio:
                 return jsonify({"ok": False, "error": "socketio unavailable"}), 500
-
-            payload = {
-                "type": "debug",
-                "text": "pong",
-                "at": datetime.utcnow().isoformat() + "Z",
-            }
+            payload = {"type": "debug", "text": "pong", "at": datetime.utcnow().isoformat() + "Z"}
             sio.emit("notify", payload, namespace="/ws/chat", to=room)
             print(f"[ws] debug notify -> {room}: {payload}")
             return jsonify({"ok": True}), 200
@@ -77,20 +129,30 @@ def create_app() -> Flask:
     # DB lifecycle
     app.teardown_appcontext(close_db)
 
-    # Ensure indexes/collections once on boot
-    with app.app_context():
-        db = get_db()
-        ensure_user_indexes(db)
-        ensure_group_collection(db)
+    # # Best-effort index bootstrap
+    # with app.app_context():
+    #     try:
+    #         db = get_db()
+    #         ensure_user_indexes(db)
+    #         ensure_group_indexes(db)
+    #     except Exception as e:
+    #         print("[db] bootstrap skipped:", e)
+
+    # Blueprints
+    _register_blueprints(app)
+
+    # Uploads
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    app.config.setdefault("UPLOAD_DIR", os.path.join(base_dir, "uploads"))
+    app.config.setdefault("MAX_CONTENT_LENGTH", 16 * 1024 * 1024)  # 16 MB
+    os.makedirs(app.config["UPLOAD_DIR"], exist_ok=True)
 
     return app
 
 
-# --- App & Socket.IO bootstrap ------------------------------------------------
+# ---------------- App & Socket.IO bootstrap ----------------------------------
 app = create_app()
 
-# Single namespace handles chat + notifications
-# Keep CORS open for dev; tighten to [client_origin] in production if desired.
 socketio = SocketIO(
     app,
     cors_allowed_origins="*",
@@ -98,14 +160,10 @@ socketio = SocketIO(
     ping_timeout=20,
     ping_interval=25,
 )
-
-# Register your custom namespace
 socketio.on_namespace(ChatNamespace("/ws/chat"))
 
-# Make sure groups.py can find it via current_app.extensions["socketio"]
 with app.app_context():
     current_app.extensions["socketio"] = socketio
 
 if __name__ == "__main__":
-    # Run the combined Flask + Socket.IO server
     socketio.run(app, host="0.0.0.0", port=5050, debug=True)
