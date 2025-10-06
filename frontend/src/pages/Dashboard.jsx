@@ -292,7 +292,15 @@ const row = { display: "flex", alignItems: "center", gap: 10 };
 const dot = { width: 10, height: 10, borderRadius: "50%", background: "#5b7cfa", boxShadow: "0 0 0 4px #eef2ff" };
 const title = { fontWeight: 800, fontSize: 18 };
 const subMeta = { color: "#667085", marginTop: 6, fontSize: 14 };
-const desc = { marginTop: 8, color: "#374151", fontSize: 14 };
+const desc = {
+  marginTop: 8,
+  color: "#374151",
+  fontSize: 14,
+  display: "-webkit-box",
+  WebkitLineClamp: 2,        
+  WebkitBoxOrient: "vertical",
+  overflow: "hidden"
+};
 
 const btnPrimary = {
   background: "linear-gradient(180deg,#5b7cfa,#4f46e5)",
