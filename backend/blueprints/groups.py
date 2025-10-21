@@ -673,50 +673,124 @@ def get_my_availability():
 
 
 # ===================== Notifications (persistent) =====================
+from bson import ObjectId
+from datetime import datetime
+from flask import jsonify, request
+from flask_jwt_extended import jwt_required, get_jwt_identity
+
+def _as_oid(v):
+    try:
+        return ObjectId(v) if isinstance(v, str) else (v if isinstance(v, ObjectId) else None)
+    except Exception:
+        return None
+
+def _user_id_variants(uid_raw):
+    out = [str(uid_raw)]
+    o = _as_oid(uid_raw)
+    if o:
+        out.append(o)
+    return out
+
+def ensure_notifications_collection(db):
+    if "notifications" not in db.list_collection_names():
+        db.create_collection("notifications")
+    db.notifications.create_index([("userId", 1), ("createdAt", -1)], background=True)
+    db.notifications.create_index([("read", 1)], background=True)
+
+def _scrub_ids(x):
+    """Recursively convert ObjectId -> str in nested dicts/lists."""
+    if isinstance(x, ObjectId):
+        return str(x)
+    if isinstance(x, list):
+        return [_scrub_ids(i) for i in x]
+    if isinstance(x, dict):
+        return {k: _scrub_ids(v) for k, v in x.items()}
+    return x
+
+def serialize_notification(doc):
+    # Build a lean object, but make sure nested bits are safe (no ObjectId left).
+    return {
+        "_id": str(doc.get("_id")),
+        "type": doc.get("type"),
+        "title": doc.get("title"),
+        "groupId": str(doc.get("groupId")) if doc.get("groupId") else None,
+        # requestor could contain an ObjectId from join-request code → scrub it
+        "requestor": _scrub_ids(doc.get("requestor")),
+        # slot is a small dict (strings) but scrub anyway for safety
+        "slot": _scrub_ids(doc.get("slot")),
+        "read": bool(doc.get("read")),
+        "createdAt": (doc.get("createdAt") or datetime.utcnow()).isoformat() + "Z",
+    }
+
 @groups_bp.get("/notifications")
 @jwt_required()
 def list_my_notifications():
-    db = get_db()
-    ensure_notifications_collection(db)
-    uid = oid(get_jwt_identity())
-    if not uid:
-        return jsonify({"ok": False, "error": "Unauthorized"}), 401
+    try:
+        from db import get_db
+        db = get_db()
+        ensure_notifications_collection(db)
 
-    rows = list(db.notifications.find({"userId": uid}).sort("createdAt", -1).limit(50))
-    return jsonify([serialize_notification(r) for r in rows]), 200
+        uid_raw = get_jwt_identity()
+        if not uid_raw:
+            return jsonify({"ok": False, "error": "Unauthorized"}), 401
 
+        variants = _user_id_variants(uid_raw)
+        rows = list(
+            db.notifications
+              .find({"userId": {"$in": variants}})
+              .sort("createdAt", -1)
+              .limit(50)
+        )
+        return jsonify([serialize_notification(r) for r in rows]), 200
+    except Exception as e:
+        return jsonify({"ok": False, "error": f"/notifications failed: {e}"}), 500
 
 @groups_bp.post("/notifications/read")
 @jwt_required()
 def mark_notifications_read():
-    db = get_db()
-    ensure_notifications_collection(db)
-    uid = oid(get_jwt_identity())
-    if not uid:
-        return jsonify({"ok": False, "error": "Unauthorized"}), 401
+    try:
+        from db import get_db
+        db = get_db()
+        ensure_notifications_collection(db)
 
-    body = request.get_json(silent=True) or {}
-    ids = body.get("ids") or []
+        uid_raw = get_jwt_identity()
+        if not uid_raw:
+            return jsonify({"ok": False, "error": "Unauthorized"}), 401
 
-    q = {"userId": uid, "read": {"$ne": True}}
-    if ids:
-        q["_id"] = {"$in": [oid(x) for x in ids if oid(x)]}
+        body = request.get_json(silent=True) or {}
+        ids = body.get("ids") or []
 
-    res = db.notifications.update_many(q, {"$set": {"read": True, "readAt": datetime.utcnow()}})
-    return jsonify({"ok": True, "updated": res.modified_count}), 200
+        variants = _user_id_variants(uid_raw)
+        q = {"userId": {"$in": variants}, "read": {"$ne": True}}
+        if ids:
+            def _either(v): return _as_oid(v) or v
+            q["_id"] = {"$in": [_either(x) for x in ids]}
 
+        res = db.notifications.update_many(q, {"$set": {"read": True, "readAt": datetime.utcnow()}})
+        return jsonify({"ok": True, "updated": res.modified_count}), 200
+    except Exception as e:
+        return jsonify({"ok": False, "error": f"/notifications/read failed: {e}"}), 500
 
 @groups_bp.post("/notifications/clear")
 @jwt_required()
 def clear_notifications():
-    db = get_db()
-    ensure_notifications_collection(db)
-    uid = oid(get_jwt_identity())
-    if not uid:
-        return jsonify({"ok": False, "error": "Unauthorized"}), 401
+    try:
+        from db import get_db
+        db = get_db()
+        ensure_notifications_collection(db)
 
-    db.notifications.delete_many({"userId": uid})
-    return jsonify({"ok": True}), 200
+        uid_raw = get_jwt_identity()
+        if not uid_raw:
+            return jsonify({"ok": False, "error": "Unauthorized"}), 401
+
+        variants = _user_id_variants(uid_raw)
+        db.notifications.delete_many({"userId": {"$in": variants}})
+        return jsonify({"ok": True}), 200
+    except Exception as e:
+        return jsonify({"ok": False, "error": f"/notifications/clear failed: {e}"}), 500
+# =================== end notifications ===================
+
+
 
 
 # ===================== CHAT =====================

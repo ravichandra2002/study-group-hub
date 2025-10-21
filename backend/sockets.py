@@ -66,6 +66,21 @@ def _tenant_db_from_email_or_default(email: str):
 
 
 class ChatNamespace(Namespace):
+
+    # Inside ChatNamespace class, add:
+    def emit_meeting_notification(self, receiver_id, message="New meeting request"):
+        try:
+            room = f"user:{str(receiver_id)}"
+            payload = {
+                "type": "meeting_request",
+                "message": message,
+                "at": datetime.utcnow().isoformat() + "Z",
+            }
+            emit("notify_user", payload, to=room)
+            print(f"[ws] meeting_notify -> {room}: {payload}")
+        except Exception as e:
+            print("[ws] meeting_notify error:", e)
+
     # --- user rooms ---------------------------------------------------------
     def on_connect(self):
         print("[ws] client connected to /ws/chat")
