@@ -1,96 +1,3 @@
-// import { useState, useEffect } from "react";
-// import api from "../lib/api";
-// import { toast } from "react-toastify";
-
-// export default function Availability() {
-//   const [day, setDay] = useState("");
-//   const [from, setFrom] = useState("");
-//   const [to, setTo] = useState("");
-//   const [slots, setSlots] = useState([]);
-
-//   const loadSlots = async () => {
-//     try {
-//       const { data } = await api.get("/availability/list");
-//       setSlots(data);
-//     } catch {
-//       toast.error("Failed to load availability.");
-//     }
-//   };
-
-//   useEffect(() => {
-//     loadSlots();
-//   }, []);
-
-//   const addSlot = async (e) => {
-//     e.preventDefault();
-//     try {
-//       const { data } = await api.post("/availability/add", { day, from, to });
-//       toast.success("Availability added!");
-//       setSlots((prev) => [...prev, data.slot]);
-//       setDay("");
-//       setFrom("");
-//       setTo("");
-//     } catch {
-//       toast.error("Failed to save availability.");
-//     }
-//   };
-
-//   return (
-//     <div style={{ padding: "20px", maxWidth: "600px", margin: "auto" }}>
-//       <h2 style={{ marginBottom: "16px", color: "#334155" }}>Your Availability</h2>
-
-//       <form onSubmit={addSlot} style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-//         <input
-//           placeholder="Day (e.g. Monday)"
-//           value={day}
-//           onChange={(e) => setDay(e.target.value)}
-//           required
-//         />
-//         <label>From:</label>
-//         <input type="time" value={from} onChange={(e) => setFrom(e.target.value)} required />
-//         <label>To:</label>
-//         <input type="time" value={to} onChange={(e) => setTo(e.target.value)} required />
-//         <button
-//           type="submit"
-//           style={{
-//             marginTop: "10px",
-//             padding: "10px 14px",
-//             backgroundColor: "#4f46e5",
-//             color: "white",
-//             border: "none",
-//             borderRadius: "6px",
-//             cursor: "pointer",
-//           }}
-//         >
-//           Save Slot
-//         </button>
-//       </form>
-
-//       <h3 style={{ marginTop: "24px", color: "#334155" }}>Saved Slots</h3>
-//       {slots.length === 0 ? (
-//         <p>No availability set yet.</p>
-//       ) : (
-//         <ul style={{ listStyle: "none", padding: 0 }}>
-//           {slots.map((s, i) => (
-//             <li
-//               key={i}
-//               style={{
-//                 marginBottom: "8px",
-//                 background: "#f9fafb",
-//                 padding: "8px",
-//                 borderRadius: "6px",
-//                 boxShadow: "0 1px 2px rgba(0,0,0,0.05)",
-//               }}
-//             >
-//               <strong>{s.day}</strong>: {s.from} - {s.to}
-//             </li>
-//           ))}
-//         </ul>
-//       )}
-//     </div>
-//   );
-// }
-// frontend/src/pages/Availability.jsx
 import { useEffect, useState, useMemo } from "react";
 import { toast } from "react-toastify";
 
@@ -117,27 +24,55 @@ async function apiPost(path, body) {
 }
 
 const DAYS = ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"];
-const cap = (s="") => s[0]?.toUpperCase() + s.slice(1);
+
+const weekdayShort = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+const monthShort = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+
+const niceDate = (yyyy_mm_dd) => {
+  if (!yyyy_mm_dd) return "";
+  const [y,m,d] = yyyy_mm_dd.split("-").map(Number);
+  if (!y || !m || !d) return "";
+  const dt = new Date(y, m - 1, d);
+  return `${weekdayShort[dt.getDay()]}, ${monthShort[dt.getMonth()]} ${dt.getDate()} ${y}`;
+};
+const weekdayFromISO = (yyyy_mm_dd) => {
+  if (!yyyy_mm_dd) return "";
+  const [y,m,d] = yyyy_mm_dd.split("-").map(Number);
+  if (!y || !m || !d) return "";
+  const dt = new Date(y, m - 1, d);
+  // Map JS Sunday(0)…Saturday(6) to our DAYS order Monday…Sunday
+  return DAYS[(dt.getDay() + 6) % 7] || "";
+};
 
 export default function Availability() {
   const [day, setDay] = useState("");
+  const [date, setDate] = useState("");     // REQUIRED
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
   const [saving, setSaving] = useState(false);
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  const canSave = day && from && to;
+  const canSave = Boolean(date) && Boolean(from) && Boolean(to);
 
+  // Auto-derive weekday when date changes
+  useEffect(() => {
+    if (date) setDay(weekdayFromISO(date));
+  }, [date]);
+
+  // --- FIX 1: group by weekday; fall back to weekday derived from date ---
   const grouped = useMemo(() => {
     const map = new Map();
     for (const r of rows) {
-      const key = r.day;
+      const key = r.day || (r.date ? weekdayFromISO(r.date) : "Other");
       if (!map.has(key)) map.set(key, []);
       map.get(key).push(r);
     }
-    // keep day order Mon..Sun
-    return DAYS.filter((d) => map.has(d)).map((d) => [d, map.get(d)]);
+    const ordered = DAYS.filter((d) => map.has(d)).map((d) => [d, map.get(d)]);
+    for (const [k, v] of map.entries()) {
+      if (!DAYS.includes(k)) ordered.push([k, v]);
+    }
+    return ordered;
   }, [rows]);
 
   const load = async () => {
@@ -145,7 +80,7 @@ export default function Availability() {
       setLoading(true);
       const data = await apiGet("/api/availability/list");
       const arr = Array.isArray(data) ? data : [];
-      // newest first
+      // newest first (createdAt from backend)
       arr.sort((a,b) => new Date(b.createdAt) - new Date(a.createdAt));
       setRows(arr);
     } catch (e) {
@@ -159,14 +94,28 @@ export default function Availability() {
 
   useEffect(() => { load(); }, []);
 
+  const validTimeRange = (from, to) => {
+    const [fh,fm] = from.split(":").map(Number);
+    const [th,tm] = to.split(":").map(Number);
+    if (Number.isNaN(fh) || Number.isNaN(th)) return false;
+    return th*60 + tm > fh*60 + fm;
+  };
+
   const save = async () => {
     if (!canSave || saving) return;
+    if (!validTimeRange(from, to)) {
+      toast.error("End time must be after start time");
+      return;
+    }
     try {
       setSaving(true);
-      await apiPost("/api/availability/add", { day, from, to });
-      setDay("");
-      setFrom("");
-      setTo("");
+      await apiPost("/api/availability/add", {
+        date,
+        day: day || weekdayFromISO(date),
+        from,
+        to,
+      });
+      setDay(""); setDate(""); setFrom(""); setTo("");
       await load();
       toast.success("Saved");
     } catch (e) {
@@ -185,39 +134,29 @@ export default function Availability() {
         {/* Form */}
         <div style={card}>
           <label style={label}>
-            Day
-            <select
-              value={day}
-              onChange={(e) => setDay(e.target.value)}
-              style={select}
-            >
-              <option value="" disabled>Choose a day…</option>
-              {DAYS.map((d) => (
-                <option key={d} value={d}>{d}</option>
-              ))}
-            </select>
+            Exact date <span style={{color:"#ef4444"}}>(required)</span>
+            <input
+              type="date"
+              value={date}
+              onChange={(e) => setDate(e.target.value)}
+              style={input}
+              required
+            />
+            {date ? (
+              <div style={{fontSize:12, color:"#6b7280"}}>
+                This is a <strong>{weekdayFromISO(date)}</strong>.
+              </div>
+            ) : null}
           </label>
 
           <div style={row2}>
             <label style={label}>
               From
-              <input
-                type="time"
-                step="900"
-                value={from}
-                onChange={(e) => setFrom(e.target.value)}
-                style={input}
-              />
+              <input type="time" step="900" value={from} onChange={(e) => setFrom(e.target.value)} style={input} required />
             </label>
             <label style={label}>
               To
-              <input
-                type="time"
-                step="900"
-                value={to}
-                onChange={(e) => setTo(e.target.value)}
-                style={input}
-              />
+              <input type="time" step="900" value={to} onChange={(e) => setTo(e.target.value)} style={input} required />
             </label>
           </div>
 
@@ -228,6 +167,10 @@ export default function Availability() {
           >
             {saving ? "Saving…" : "Save Slot"}
           </button>
+
+          <div style={{fontSize:12, color:"#6b7280"}}>
+            Date is mandatory. The weekday will be auto-detected.
+          </div>
         </div>
 
         {/* List */}
@@ -238,16 +181,27 @@ export default function Availability() {
           <div style={muted}>No availability set yet.</div>
         ) : (
           <div style={{ display: "grid", gap: 14 }}>
-            {grouped.map(([d, items]) => (
-              <section key={d} style={daySection}>
-                <div style={dayHeader}>{d}</div>
+            {grouped.map(([section, items]) => (
+              <section key={section} style={daySection}>
+                <div style={dayHeader}>{section}</div>
                 <div style={chips}>
-                  {items.map((r) => (
-                    <span key={r._id} title={`${r.day} ${r.from}–${r.to}`} style={chip}>
-                      <span style={dot} />
-                      {r.from}–{r.to}
-                    </span>
-                  ))}
+                  {items.map((r) => {
+                    // --- FIX 2: always include the date in the label if present ---
+                    const parts = [];
+                    // show detected weekday in chip (matches section)
+                    const chipDay = r.day || (r.date ? weekdayFromISO(r.date) : "");
+                    if (chipDay) parts.push(chipDay);
+                    if (r.date) parts.push(niceDate(r.date)); // Tue, Oct 28 2025
+                    parts.push(`${r.from}–${r.to}`);
+                    const label = parts.join(" • ");
+
+                    return (
+                      <span key={r._id} title={label} style={chip}>
+                        <span style={dot} />
+                        {label}
+                      </span>
+                    );
+                  })}
                 </div>
               </section>
             ))}
@@ -258,7 +212,7 @@ export default function Availability() {
   );
 }
 
-/* --------- styles (inline to match your app) --------- */
+/* --------- styles --------- */
 const pageWrap = {
   padding: "32px 16px 72px",
   minHeight: "calc(100vh - 80px)",
@@ -284,13 +238,6 @@ const input = {
   padding: "0 12px",
   font: "inherit",
   outline: "none",
-};
-const select = {
-  ...input,
-  appearance: "none",
-  background:
-    "linear-gradient(#fff,#fff) padding-box, linear-gradient(180deg,#c7d2fe,#a5b4fc) border-box",
-  border: "1px solid #e5e7eb",
 };
 const row2 = { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 };
 const btnPrimary = {

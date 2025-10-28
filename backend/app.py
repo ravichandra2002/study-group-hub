@@ -1,9 +1,11 @@
+
+
 # # backend/app.py
 # from datetime import datetime
 # import os
 # import traceback
 
-# from flask import Flask, jsonify, current_app, Blueprint
+# from flask import Flask, jsonify, current_app, Blueprint, request
 # from flask_cors import CORS
 # from flask_jwt_extended import (
 #     JWTManager, jwt_required, get_jwt_identity, verify_jwt_in_request
@@ -15,10 +17,20 @@
 #     get_db, close_db, ensure_user_indexes, ensure_group_indexes, bind_request_db
 # )
 # from sockets import ChatNamespace
-
+# from mailer import send_email  # debug email endpoint
 
 # def _register_blueprints(app: Flask) -> None:
-#     # ---- auth (optional; stub is fine) ------------------------------------
+#     """Import and register all HTTP blueprints."""
+
+#     # notifications (optional)
+#     try:
+#         from blueprints.notifications import notifications_bp
+#         app.register_blueprint(notifications_bp)
+#         print("[app] registered notifications blueprint")
+#     except Exception as e:
+#         print("[app] failed to import notifications:", e)
+
+#     # auth (ok to stub)
 #     try:
 #         from blueprints.auth import auth_bp  # type: ignore
 #         app.register_blueprint(auth_bp)
@@ -32,8 +44,7 @@
 
 #         app.register_blueprint(auth_bp)
 
-
-#     # ---- availability -----------------------------------------------------
+#     # availability
 #     try:
 #         from blueprints.availability import availability_bp
 #         app.register_blueprint(availability_bp)
@@ -41,15 +52,15 @@
 #     except Exception as e:
 #         print("[app] failed to import availability:", e)
 
-#     # ---- meetings ---------------------------------------------------------
+#     # meetings
 #     try:
 #         from blueprints.meetings import meetings_bp
 #         app.register_blueprint(meetings_bp)
 #         print("[app] registered meetings blueprint")
 #     except Exception as e:
-#         print("[app] failed to import meetings:", e)    
+#         print("[app] failed to import meetings:", e)
 
-#     # ---- groups (REQUIRED; try two locations; NO STUB) --------------------
+#     # groups (REQUIRED; try two locations; no stub)
 #     last_err = None
 #     for path in ("blueprints.groups", "groups"):
 #         try:
@@ -68,7 +79,7 @@
 #             "or at backend/groups.py."
 #         ) from last_err
 
-#     # ---- /api/me (optional; stub is fine) ---------------------------------
+#     # /api/me (ok to stub)
 #     try:
 #         from routes_me import me_bp  # type: ignore
 #         app.register_blueprint(me_bp)
@@ -90,12 +101,11 @@
 
 #             app.register_blueprint(me_bp)
 
-
 # def create_app() -> Flask:
 #     app = Flask(__name__)
 #     app.config.from_object(Config)
 
-#     # ----- CORS (Vite runs on :5173) --------------------------------------
+#     # CORS for Vite dev origin
 #     client_origin = app.config.get("CLIENT_ORIGIN") or os.environ.get(
 #         "CLIENT_ORIGIN", "http://localhost:5173"
 #     )
@@ -105,13 +115,13 @@
 #         methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
 #         allow_headers=["Authorization", "Content-Type"],
 #         expose_headers=["Authorization", "Content-Type", "Content-Disposition"],
-#         supports_credentials=False,  # we use Authorization header, not cookies
+#         supports_credentials=False,
 #     )
 
-#     # ----- JWT -------------------------------------------------------------
+#     # JWT
 #     JWTManager(app)
 
-#     # Bind tenant DB (based on JWT) on every request. Public routes still OK.
+#     # Bind DB per request (based on JWT if present)
 #     @app.before_request
 #     def _bind_db():
 #         verify_jwt_in_request(optional=True)
@@ -143,17 +153,28 @@
 #         except Exception as e:
 #             return jsonify({"ok": False, "error": str(e)}), 500
 
+#     # Debug: quick email sender to verify SMTP credentials
+#     @app.get("/api/__debug/send_email")
+#     @jwt_required(optional=True)
+#     def __debug_send_email():
+#         to = request.args.get("to") or current_app.config.get("SMTP_USER")
+#         ok, err = send_email(
+#             to=to,
+#             subject="SGH: Email test ✔",
+#             html="""
+#                 <div style="font-family:system-ui,Segoe UI,Arial;">
+#                   <h2>Study Group Hub – Email Test</h2>
+#                   <p>If you can read this, SMTP is working 🎉</p>
+#                 </div>
+#             """,
+#             text="Study Group Hub – Email test. If you see this, SMTP works.",
+#         )
+#         if not ok:
+#             return jsonify({"ok": False, "error": err}), 500
+#         return jsonify({"ok": True, "sent_to": to}), 200
+
 #     # DB lifecycle
 #     app.teardown_appcontext(close_db)
-
-#     # # Best-effort index bootstrap
-#     # with app.app_context():
-#     #     try:
-#     #         db = get_db()
-#     #         ensure_user_indexes(db)
-#     #         ensure_group_indexes(db)
-#     #     except Exception as e:
-#     #         print("[db] bootstrap skipped:", e)
 
 #     # Blueprints
 #     _register_blueprints(app)
@@ -165,7 +186,6 @@
 #     os.makedirs(app.config["UPLOAD_DIR"], exist_ok=True)
 
 #     return app
-
 
 # # ---------------- App & Socket.IO bootstrap ----------------------------------
 # app = create_app()
@@ -186,27 +206,36 @@
 #     socketio.run(app, host="0.0.0.0", port=5050, debug=True)
 
 # backend/app.py
-from datetime import datetime
+from datetime import datetime, timedelta
 import os
 import traceback
+from threading import Thread, Event
 
-from flask import Flask, jsonify, current_app, Blueprint
+from flask import Flask, jsonify, current_app, Blueprint, request
 from flask_cors import CORS
 from flask_jwt_extended import (
     JWTManager, jwt_required, get_jwt_identity, verify_jwt_in_request
 )
 from flask_socketio import SocketIO
+from pymongo import MongoClient
 
 from config import Config
 from db import (
     get_db, close_db, ensure_user_indexes, ensure_group_indexes, bind_request_db
 )
 from sockets import ChatNamespace
+from mailer import send_email  # debug email endpoint
 
+def _bg_db():
+    """Standalone DB client for background worker (no request context)."""
+    uri = os.getenv("MONGO_URI") or getattr(Config, "MONGO_URI", "")
+    dbname = os.getenv("MONGO_DBNAME", "study_group_hub")
+    client = MongoClient(uri, connectTimeoutMS=10000, serverSelectionTimeoutMS=10000)
+    return client[dbname]
 
 def _register_blueprints(app: Flask) -> None:
+    """Import and register all HTTP blueprints."""
 
-        # ---- notifications ----------------------------------------------------
     try:
         from blueprints.notifications import notifications_bp
         app.register_blueprint(notifications_bp)
@@ -280,12 +309,10 @@ def _register_blueprints(app: Flask) -> None:
 
             app.register_blueprint(me_bp)
 
-
 def create_app() -> Flask:
     app = Flask(__name__)
     app.config.from_object(Config)
 
-    # CORS for your Vite dev origin
     client_origin = app.config.get("CLIENT_ORIGIN") or os.environ.get(
         "CLIENT_ORIGIN", "http://localhost:5173"
     )
@@ -329,6 +356,25 @@ def create_app() -> Flask:
         except Exception as e:
             return jsonify({"ok": False, "error": str(e)}), 500
 
+    @app.get("/api/__debug/send_email")
+    @jwt_required(optional=True)
+    def __debug_send_email():
+        to = request.args.get("to") or current_app.config.get("SMTP_USER")
+        ok, err = send_email(
+            to=to,
+            subject="SGH: Email test ✔",
+            html="""
+                <div style="font-family:system-ui,Segoe UI,Arial;">
+                  <h2>Study Group Hub – Email Test</h2>
+                  <p>If you can read this, SMTP is working 🎉</p>
+                </div>
+            """,
+            text="Study Group Hub – Email test. If you see this, SMTP works.",
+        )
+        if not ok:
+            return jsonify({"ok": False, "error": err}), 500
+        return jsonify({"ok": True, "sent_to": to}), 200
+
     app.teardown_appcontext(close_db)
     _register_blueprints(app)
 
@@ -339,7 +385,7 @@ def create_app() -> Flask:
 
     return app
 
-
+# ---------------- App & Socket.IO bootstrap ----------------------------------
 app = create_app()
 
 socketio = SocketIO(
@@ -354,5 +400,77 @@ socketio.on_namespace(ChatNamespace("/ws/chat"))
 with app.app_context():
     current_app.extensions["socketio"] = socketio
 
+# ---------------- Reminder worker (runs every ~60s) --------------------------
+stop_event = Event()
+
+def _send_30min_reminders():
+    """Find accepted meetings starting in ~30 minutes and email both sides once."""
+    db = _bg_db()
+    now = datetime.utcnow()
+    window_start = now + timedelta(minutes=29)   # small window so we don't miss by latency
+    window_end   = now + timedelta(minutes=31)
+
+    crit = {
+        "status": "accepted",
+        "reminderSent": {"$ne": True},
+        "startAt": {"$gte": window_start, "$lte": window_end},
+    }
+
+    matches = list(db.meetings.find(crit).limit(50))
+    if not matches:
+        return
+
+    # try to resolve emails from users collection if available
+    users = db.users if "users" in db.list_collection_names() else None
+
+    for m in matches:
+        slot = m.get("slot", {})
+        link = m.get("meetingLink")
+        when_txt = f"{slot.get('day')} {slot.get('date')} {slot.get('from')}–{slot.get('to')}"
+        sender_id = str(m.get("senderId"))
+        receiver_id = str(m.get("receiverId"))
+
+        sender_email = None
+        receiver_email = None
+        if users:
+            sdoc = users.find_one({"_id": _as_oid(sender_id)}) or users.find_one({"id": sender_id})
+            rdoc = users.find_one({"_id": _as_oid(receiver_id)}) or users.find_one({"id": receiver_id})
+            sender_email = sdoc.get("email") if sdoc else None
+            receiver_email = rdoc.get("email") if rdoc else None
+
+        # Send emails
+        subject = "Reminder: your meeting starts in 30 minutes"
+        html = f"""
+            <div style="font-family:system-ui,Segoe UI,Arial">
+              <h2>Starting soon (30 minutes)</h2>
+              <p>Time: <strong>{when_txt}</strong></p>
+              {f"<p>Meeting link: <a href='{link}'>{link}</a></p>" if link else ""}
+              <p>See you there!</p>
+            </div>
+        """
+        text = f"Starts in 30 minutes: {when_txt}. Link: {link or '(no link)'}"
+
+        if sender_email:
+            send_email(to=sender_email, subject=subject, html=html, text=text)
+        if receiver_email:
+            send_email(to=receiver_email, subject=subject, html=html, text=text)
+
+        db.meetings.update_one({"_id": m["_id"]}, {"$set": {"reminderSent": True, "reminderAt": now}})
+
+def _reminder_loop():
+    with app.app_context():
+        print("[reminder] worker started")
+        while not stop_event.wait(60):  # every ~60s
+            try:
+                _send_30min_reminders()
+            except Exception as e:
+                print("[reminder] error:", e)
+
+# kick it off
+Thread(target=_reminder_loop, daemon=True).start()
+
 if __name__ == "__main__":
-    socketio.run(app, host="0.0.0.0", port=5050, debug=True)
+    try:
+        socketio.run(app, host="0.0.0.0", port=5050, debug=True)
+    finally:
+        stop_event.set()

@@ -1,3 +1,4 @@
+/* --- Backdrop & Container --- */
 .backdrop {
   position: fixed;
   inset: 0;
@@ -20,6 +21,7 @@
   padding: 20px;
 }
 
+/* --- Header --- */
 .head {
   display: flex;
   align-items: center;
@@ -45,13 +47,16 @@
   cursor: pointer;
   font-weight: 800;
 }
+.x:hover { box-shadow: 0 0 0 3px rgba(91,124,250,0.15); }
 
+/* --- Subhead --- */
 .sub {
   margin: 6px 0 16px;
   color: #374151;
   font-size: 14px;
 }
 
+/* --- Form --- */
 .form {
   width: 100%;
   box-sizing: border-box;
@@ -89,12 +94,12 @@
   background: #ffffff;
   outline: none;
 }
-
 .input:focus {
   border-color: #cdd6ff;
   box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.18);
 }
 
+/* --- Actions --- */
 .actions {
   display: flex;
   flex-wrap: wrap;
@@ -112,7 +117,6 @@
   font-weight: 800;
   cursor: pointer;
 }
-
 .primary:disabled {
   opacity: 0.6;
   cursor: not-allowed;
@@ -139,6 +143,7 @@
   cursor: pointer;
 }
 
+
 .savedWrap {
   margin-top: 14px;
   border-top: 1px dashed #e5e7eb;
@@ -148,8 +153,11 @@
   transition: max-height 220ms ease;
 }
 
+
 .savedOpen {
-  max-height: 260px;
+  max-height: 420px;          
+  overflow: auto;              
+  scroll-behavior: smooth;
 }
 
 .savedTitle {
@@ -162,7 +170,7 @@
 .chips {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 8px 10px;
 }
 
 .chip {
@@ -177,7 +185,28 @@
   font-weight: 800;
   font-size: 12px;
   cursor: pointer;
+  white-space: nowrap;     
+  user-select: none;
 }
+.chip:hover {
+  background: #eef2ff;
+  border-color: #dbe2ff;
+  box-shadow: 0 2px 10px rgba(79,70,229,0.08);
+}
+.chip:active { transform: translateY(1px); }
+
+
+.chipSky {
+  background: #F0F9FF;
+  border-color: #E0F2FE;
+  color: #0369a1;
+}
+.chipGreen {
+  background: #ECFDF5;
+  border-color: #D1FAE5;
+  color: #065f46;
+}
+
 
 .dot {
   width: 8px;
@@ -187,9 +216,9 @@
   box-shadow: 0 0 0 3px #DFF5FF;
 }
 
-.sep {
-  opacity: 0.65;
-}
+
+.sep { opacity: 0.65; }
+
 
 .empty {
   color: #6b7280;
@@ -200,8 +229,9 @@
   background: #fafafa;
 }
 
-/* Responsiveness */
+
 @media (max-width: 600px) {
   .row2 { grid-template-columns: 1fr; }
   .secondary { margin-left: 0; }
+  .chip { font-size: 11px; } 
 }

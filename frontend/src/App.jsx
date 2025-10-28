@@ -528,254 +528,275 @@ export default function App() {
   };
 
   /* --------------- notifications --------------- */
-  const [notifs, setNotifs] = useState([]);
-  const [menuOpen, setMenuOpen] = useState(false);
-  const unreadCount = notifs.filter((n) => !n.read).length;
+const [notifs, setNotifs] = useState([]);
+const [menuOpen, setMenuOpen] = useState(false);
+const unreadCount = notifs.filter((n) => !n.read).length;
 
-  const bellBtnRef = useRef(null);
-  const dropdownRef = useRef(null);
-  const prevUserIdRef = useRef(null);
+const bellBtnRef = useRef(null);
+const dropdownRef = useRef(null);
+const prevUserIdRef = useRef(null);
 
-  const textFrom = (p) => {
-    if (!p) return "";
-    switch (p.type) {
-      case "join_approved":
-      case "join_approved_local":
-        return `You were approved to join “${p.title || "a group"}”.`;
-      case "join_rejected":
-        return `Your request to join “${p.title || "a group"}” was rejected.`;
-      case "join_request": {
-        const who = p.requestor?.name || p.requestor?.email || "Someone";
-        return `${who} requested to join “${p.title || "a group"}”.`;
-      }
-      case "meeting_request":
-        return p.title || "New meeting request";
-      case "meeting_accepted":
-        return p.title || "Your meeting request was accepted";
-      case "meeting_rejected":
-        return p.title || "Your meeting request was rejected";
-      case "debug":
-        return p.text || "Debug message";
-      default:
-        return p.title || "Notification";
+const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:5050";
+
+const textFrom = (p) => {
+  if (!p) return "";
+  switch (p.type) {
+    case "join_approved":
+    case "join_approved_local":
+      return `You were approved to join “${p.title || "a group"}”.`;
+    case "join_rejected":
+      return `Your request to join “${p.title || "a group"}” was rejected.`;
+    case "join_request": {
+      const who = p.requestor?.name || p.requestor?.email || "Someone";
+      return `${who} requested to join “${p.title || "a group"}”.`;
     }
-  };
+    case "meeting_request":
+      return p.title || "New meeting request";
+    case "meeting_accepted":
+      return p.title || "Your meeting request was accepted";
+    case "meeting_rejected":
+      return p.title || "Your meeting request was rejected";
+    case "debug":
+      return p.text || "Debug message";
+    default:
+      return p.title || "Notification";
+  }
+};
 
-  const mergeNotifs = (existing = [], incoming = []) => {
-    const seen = new Set();
-    const merged = [...incoming, ...existing].reduce((acc, n) => {
-      const key = n._id || n.id || `${n.type || "n"}-${n.at}`;
-      if (seen.has(key)) return acc;
-      seen.add(key);
-      acc.push(n);
-      return acc;
-    }, []);
-    merged.sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime());
-    return merged.slice(0, 50);
-  };
-
-  // Load *my* notifications only (server filters by user)
-  const loadPersistedNotifs = async () => {
-    try {
-      const res = await api.get("/notifications/list");
-      const arr = Array.isArray(res?.data ?? res) ? (res.data ?? res) : [];
-
-      // Extra guard: ignore self-sent meeting_request if one ever slips through
-      const filtered = arr.filter(
-        (n) => !(n.type === "meeting_request" && n?.requestor?._id === myId)
-      );
-
-      console.log("[notifications] fetched", filtered);
-
-      const mapped = filtered.map((n) => ({
-        id: n._id || `${Date.now()}-${Math.random()}`,
-        _id: n._id,
-        text: textFrom(n),
-        at: n.createdAt || new Date().toISOString(),
-        read: !!n.read,
-        type: n.type,
-        slot: n.slot,
-        groupId: n.groupId || n.group_id || n.gid,
-      }));
-      setNotifs((prev) => mergeNotifs(prev, mapped));
-    } catch (err) {
-      const server = err?.response?.data;
-      console.error(
-        "[notifications] fetch failed:",
-        err?.message,
-        server ? `\nserver says: ${JSON.stringify(server)}` : ""
-      );
-    }
-  };
-
-  useEffect(() => {
-    window.debugFetchNotifications = loadPersistedNotifs;
+// de-dupe by _id when possible; fall back to a type+timestamp key
+const mergeNotifs = (existing = [], incoming = []) => {
+  const seen = new Set();
+  const merged = [...incoming, ...existing].reduce((acc, n) => {
+    const key = n._id || n.id || `${n.type || "n"}-${n.at}`;
+    if (seen.has(key)) return acc;
+    seen.add(key);
+    acc.push(n);
+    return acc;
   }, []);
+  merged.sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime());
+  return merged.slice(0, 50);
+};
 
-  const attachSocketHandlers = () => {
-    const onNotify = (payload) => {
-      // Ignore my own "meeting_request" (sender shouldn't see it)
-      if (payload?.type === "meeting_request" && payload?.requestor?._id === myId) {
-        return;
-      }
-      console.log("[socket] notify payload →", payload);
-      setNotifs((prev) =>
-        mergeNotifs(prev, [
-          {
-            id: `${Date.now()}-${Math.random()}`,
-            text: textFrom(payload),
-            at: payload?.at || new Date().toISOString(),
-            read: false,
-            type: payload?.type,
-            slot: payload?.slot,
-            groupId: payload?.groupId || payload?.group_id || payload?.gid,
-          },
-        ])
-      );
-    };
+// --- API helpers
+const markRead = async (notifId) => {
+  try {
+    await fetch(`${API_BASE}/api/notifications/mark-read`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${localStorage.getItem("token") || ""}`,
+      },
+      body: JSON.stringify({ id: notifId }),
+    });
+  } catch (err) {
+    console.error("[notifications] mark-read error:", err);
+  }
+};
 
-    const onConnect = () => {
-      console.log("[socket] connected, myId =", myId);
-      if (myId) joinUserRoom(myId);
-    };
+// Load *my* unread notifications only (backend should already filter to unread)
+const loadPersistedNotifs = async () => {
+  try {
+    const res = await api.get("/notifications/list");
+    const arr = Array.isArray(res?.data ?? res) ? (res.data ?? res) : [];
 
-    notifySocket.on("connect", onConnect);
-    notifySocket.on("notify", onNotify);
-    notifySocket.on("notify_user", onNotify);
+    // guard: ignore self-sent meeting_request if one ever slips through
+    const filtered = arr.filter(
+      (n) => !(n.type === "meeting_request" && n?.requestor?._id === myId)
+    );
 
-    return () => {
-      notifySocket.off("connect", onConnect);
-      notifySocket.off("notify", onNotify);
-      notifySocket.off("notify_user", onNotify);
-    };
-  };
+    const mapped = filtered.map((n) => ({
+      id: n._id || `${Date.now()}-${Math.random()}`,
+      _id: n._id,
+      text: textFrom(n),
+      at: n.createdAt || new Date().toISOString(),
+      read: !!n.read, // should be false for unread list
+      type: n.type,
+      slot: n.slot,
+      groupId: n.groupId || n.group_id || n.gid,
+    }));
 
-  useEffect(() => {
-    if (!isAuthed || !myId) {
-      try {
-        notifySocket.removeAllListeners();
-        notifySocket.disconnect();
-      } catch {}
-      prevUserIdRef.current = null;
+    setNotifs((prev) => mergeNotifs(prev, mapped));
+  } catch (err) {
+    const server = err?.response?.data;
+    console.error(
+      "[notifications] fetch failed:",
+      err?.message,
+      server ? `\nserver says: ${JSON.stringify(server)}` : ""
+    );
+  }
+};
+
+useEffect(() => {
+  window.debugFetchNotifications = loadPersistedNotifs;
+}, []);
+
+const attachSocketHandlers = () => {
+  const onNotify = (payload) => {
+    // Ignore my own "meeting_request" (sender shouldn't see it)
+    if (payload?.type === "meeting_request" && payload?.requestor?._id === myId) {
       return;
     }
-
-    const prevId = prevUserIdRef.current;
-    if (prevId && prevId !== myId) {
-      try {
-        notifySocket.removeAllListeners();
-        notifySocket.disconnect();
-      } catch {}
-    }
-    prevUserIdRef.current = myId;
-
-    const detach = attachSocketHandlers();
-
-    if (!notifySocket.connected) {
-      notifySocket.connect();
-    } else {
-      joinUserRoom(myId);
-    }
-
-    const onLocalNotify = (ev) => {
-      const payload = ev?.detail || {};
-      // same ignore rule for local events
-      if (payload?.type === "meeting_request" && payload?.requestor?._id === myId) {
-        return;
-      }
-      console.log("[window] sgh:notify →", payload);
-      setNotifs((prev) =>
-        mergeNotifs(prev, [
-          {
-            id: `${Date.now()}-${Math.random()}`,
-            text: textFrom(payload),
-            at: payload?.at || new Date().toISOString(),
-            read: false,
-            type: payload?.type,
-            slot: payload?.slot,
-            groupId: payload?.groupId || payload?.group_id || payload?.gid,
-          },
-        ])
-      );
-    };
-    window.addEventListener("sgh:notify", onLocalNotify);
-
-    return () => {
-      detach();
-      window.removeEventListener("sgh:notify", onLocalNotify);
-    };
-  }, [isAuthed, myId]);
-
-  // load my notifications when authed / user id changes
-  useEffect(() => {
-    if (isAuthed && myId) {
-      console.log("[notifications] loading persisted for user:", myId);
-      loadPersistedNotifs();
-    }
-  }, [isAuthed, myId]);
-
-  const toggleMenu = async () => {
-    const next = !menuOpen;
-    setMenuOpen(next);
-    if (next && notifs.length === 0) {
-      await loadPersistedNotifs();
-    }
+    setNotifs((prev) =>
+      mergeNotifs(prev, [
+        {
+          id: `${Date.now()}-${Math.random()}`,
+          _id: payload?._id, // if server includes it
+          text: textFrom(payload),
+          at: payload?.at || new Date().toISOString(),
+          read: false,
+          type: payload?.type,
+          slot: payload?.slot,
+          groupId: payload?.groupId || payload?.group_id || payload?.gid,
+        },
+      ])
+    );
   };
 
-  useEffect(() => {
-    if (!menuOpen) return;
+  const onConnect = () => {
+    if (myId) joinUserRoom(myId);
+  };
 
-    const onPointerDown = (e) => {
-      const btn = bellBtnRef.current;
-      const dd = dropdownRef.current;
-      const insideBtn = btn && btn.contains(e.target);
-      const insideDd = dd && dd.contains(e.target);
-      if (!insideBtn && !insideDd) setMenuOpen(false);
-    };
-    const onKeyDown = (e) => e.key === "Escape" && setMenuOpen(false);
+  notifySocket.on("connect", onConnect);
+  notifySocket.on("notify", onNotify);
+  notifySocket.on("notify_user", onNotify);
 
-    document.addEventListener("pointerdown", onPointerDown);
-    document.addEventListener("keydown", onKeyDown);
-    return () => {
-      document.removeEventListener("pointerdown", onPointerDown);
-      document.removeEventListener("keydown", onKeyDown);
-    };
-  }, [menuOpen]);
+  return () => {
+    notifySocket.off("connect", onConnect);
+    notifySocket.off("notify", onNotify);
+    notifySocket.off("notify_user", onNotify);
+  };
+};
 
-  useEffect(() => setMenuOpen(false), [location]);
-
-  const clearNotifs = async () => {
+useEffect(() => {
+  if (!isAuthed || !myId) {
     try {
-      await api.post("/notifications/clear");
-    } catch (e) {
-      console.warn("[notifications] clear failed:", e);
-    } finally {
-      setNotifs([]); // clear locally
-    }
-  };
+      notifySocket.removeAllListeners();
+      notifySocket.disconnect();
+    } catch {}
+    prevUserIdRef.current = null;
+    return;
+  }
 
-  // route on click
-  const handleNotifClick = (n) => {
-    setNotifs((prev) => prev.map((x) => (x.id === n.id ? { ...x, read: true } : x)));
+  const prevId = prevUserIdRef.current;
+  if (prevId && prevId !== myId) {
+    try {
+      notifySocket.removeAllListeners();
+      notifySocket.disconnect();
+    } catch {}
+  }
+  prevUserIdRef.current = myId;
 
-    if (n.type && n.type.startsWith("meeting_")) {
-      navigate("/meetings");
-      setMenuOpen(false);
+  const detach = attachSocketHandlers();
+
+  if (!notifySocket.connected) {
+    notifySocket.connect();
+  } else {
+    joinUserRoom(myId);
+  }
+
+  const onLocalNotify = (ev) => {
+    const payload = ev?.detail || {};
+    if (payload?.type === "meeting_request" && payload?.requestor?._id === myId) {
       return;
     }
-
-    if (n.type === "join_request" || n.type === "join_approved" || n.type === "join_rejected") {
-      if (n.groupId) {
-        navigate(`/group/${n.groupId}`);
-      } else {
-        navigate("/my-groups");
-      }
-      setMenuOpen(false);
-      return;
-    }
-
-    console.log("Notification clicked:", n);
+    setNotifs((prev) =>
+      mergeNotifs(prev, [
+        {
+          id: `${Date.now()}-${Math.random()}`,
+          _id: payload?._id,
+          text: textFrom(payload),
+          at: payload?.at || new Date().toISOString(),
+          read: false,
+          type: payload?.type,
+          slot: payload?.slot,
+          groupId: payload?.groupId || payload?.group_id || payload?.gid,
+        },
+      ])
+    );
   };
+  window.addEventListener("sgh:notify", onLocalNotify);
+
+  return () => {
+    detach();
+    window.removeEventListener("sgh:notify", onLocalNotify);
+  };
+}, [isAuthed, myId]);
+
+// load my notifications when authed / user id changes
+useEffect(() => {
+  if (isAuthed && myId) {
+    loadPersistedNotifs();
+  }
+}, [isAuthed, myId]);
+
+const toggleMenu = async () => {
+  const next = !menuOpen;
+  setMenuOpen(next);
+  if (next && notifs.length === 0) {
+    await loadPersistedNotifs();
+  }
+};
+
+useEffect(() => {
+  if (!menuOpen) return;
+
+  const onPointerDown = (e) => {
+    const btn = bellBtnRef.current;
+    const dd = dropdownRef.current;
+    const insideBtn = btn && btn.contains(e.target);
+    const insideDd = dd && dd.contains(e.target);
+    if (!insideBtn && !insideDd) setMenuOpen(false);
+  };
+  const onKeyDown = (e) => e.key === "Escape" && setMenuOpen(false);
+
+  document.addEventListener("pointerdown", onPointerDown);
+  document.addEventListener("keydown", onKeyDown);
+  return () => {
+    document.removeEventListener("pointerdown", onPointerDown);
+    document.removeEventListener("keydown", onKeyDown);
+  };
+}, [menuOpen]);
+
+useEffect(() => setMenuOpen(false), [location]);
+
+const clearNotifs = async () => {
+  try {
+    await api.post("/notifications/clear");
+  } catch (e) {
+    console.warn("[notifications] clear failed:", e);
+  } finally {
+    setNotifs([]); // clear locally
+  }
+};
+
+// route on click + mark read server-side and remove it locally
+const handleNotifClick = async (n) => {
+  // Optimistic: remove immediately
+  setNotifs((prev) => prev.filter((x) => (n._id ? x._id !== n._id : x.id !== n.id)));
+
+  // Tell backend it's read
+  if (n._id) {
+    await markRead(n._id);
+  }
+
+  // Navigate based on type
+  if (n.type && n.type.startsWith("meeting_")) {
+    navigate("/meetings");
+    setMenuOpen(false);
+    return;
+  }
+  if (n.type === "join_request" || n.type === "join_approved" || n.type === "join_rejected") {
+    if (n.groupId) {
+      navigate(`/group/${n.groupId}`);
+    } else {
+      navigate("/my-groups");
+    }
+    setMenuOpen(false);
+    return;
+  }
+
+  console.log("Notification clicked:", n);
+};
 
   /* ---------------- drawer ---------------- */
   const [drawerOpen, setDrawerOpen] = useState(false);
