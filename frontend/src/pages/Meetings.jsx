@@ -1,15 +1,11 @@
-
-
-
+// frontend/src/pages/Meetings.jsx
 import { useEffect, useState } from "react";
 import { toast } from "react-toastify";
 import api from "../lib/api";
 
 const cap = (s = "") => (s ? s[0].toUpperCase() + s.slice(1) : "");
 const fmt = (slot) =>
-  slot
-    ? `${cap(slot.day)}${slot.date ? " " + slot.date : ""} ${slot.from} - ${slot.to}`
-    : "—";
+  slot ? `${cap(slot.day)}${slot.date ? " " + slot.date : ""} ${slot.from} - ${slot.to}` : "—";
 
 export default function Meetings() {
   const [loading, setLoading] = useState(true);
@@ -32,14 +28,15 @@ export default function Meetings() {
     }
   };
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => {
+    load();
+  }, []);
 
   const respond = async (id, action) => {
     try {
       setBusy(id);
-      // backend now returns { ok, meeting }
       const res = await api.post("/meetings/respond", { meeting_id: id, action });
-      const updated = res.meeting;
+      const updated = res.meeting ?? res.data?.meeting;
       setRows((prev) =>
         prev.map((m) =>
           m._id === id
@@ -61,41 +58,61 @@ export default function Meetings() {
     }
   };
 
-const clearOne = async (id) => {
-  try {
-    setBusy(id);
-    await api.post("/meetings/clear", { meeting_id: id });
-    // Remove it from local state so UI updates instantly
-    setRows((prev) => prev.filter((m) => m._id !== id));
-    toast.success("Cleared from your list");
-  } catch (e) {
-    console.error(e);
-    toast.error("Could not clear meeting");
-  } finally {
-    setBusy(null);
-  }
-};
-
-
-const clearAllNonPending = async () => {
-  const clearables = rows.filter((r) => r.status !== "pending").map((r) => r._id);
-  if (clearables.length === 0) return;
-  try {
-    setBusy("all");
-    for (const id of clearables) {
-      await api.post("/meetings/clear", { meeting_id: id }).catch(() => {});
+  const clearOne = async (id) => {
+    try {
+      setBusy(id);
+      await api.post("/meetings/clear", { meeting_id: id });
+      setRows((prev) => prev.filter((m) => m._id !== id));
+      toast.success("Cleared from your list");
+    } catch (e) {
+      console.error(e);
+      toast.error("Could not clear meeting");
+    } finally {
+      setBusy(null);
     }
-    setRows((prev) => prev.filter((m) => m.status === "pending"));
-    toast.success("Cleared finished meetings");
-  } catch (e) {
-    toast.error("Could not clear some meetings");
-  } finally {
-    setBusy(null);
-  }
-};
+  };
 
+  const clearAllNonPending = async () => {
+    const clearables = rows.filter((r) => r.status !== "pending").map((r) => r._id);
+    if (clearables.length === 0) return;
+    try {
+      setBusy("all");
+      for (const id of clearables) {
+        await api.post("/meetings/clear", { meeting_id: id }).catch(() => {});
+      }
+      setRows((prev) => prev.filter((m) => m.status === "pending"));
+      toast.success("Cleared finished meetings");
+    } catch (e) {
+      toast.error("Could not clear some meetings");
+    } finally {
+      setBusy(null);
+    }
+  };
 
   const anyNonPending = rows.some((r) => r.status !== "pending");
+
+  // Single-event .ics download (keeps auth headers)
+  const downloadIcs = async (meetingId, filenameHint = "meeting") => {
+    try {
+      const base = (api.defaults?.baseURL || "").replace(/\/+$/, "");
+      const url = `${base}/meetings/${meetingId}/ics`;
+      const res = await fetch(url, {
+        headers: { Authorization: `Bearer ${localStorage.getItem("token") || ""}` },
+      });
+      if (!res.ok) throw new Error(await res.text());
+      const blob = await res.blob();
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = `${filenameHint}.ics`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+    } catch (e) {
+      console.error(e);
+      toast.error("Could not download .ics");
+    }
+  };
 
   return (
     <div style={pageWrap}>
@@ -103,7 +120,11 @@ const clearAllNonPending = async () => {
         <div style={headerRow}>
           <h2 style={pageTitle}>Meeting Requests</h2>
           <button
-            style={{ ...btnGhost, opacity: anyNonPending ? 1 : 0.5, pointerEvents: anyNonPending ? "auto" : "none" }}
+            style={{
+              ...btnGhost,
+              opacity: anyNonPending ? 1 : 0.5,
+              pointerEvents: anyNonPending ? "auto" : "none",
+            }}
             onClick={clearAllNonPending}
           >
             Clear all finished
@@ -149,10 +170,23 @@ const clearAllNonPending = async () => {
                 <div style={muted}>{m.role}</div>
 
                 <div>
-                  {m.status === "accepted" && m.meetingLink ? (
-                    <a href={m.meetingLink} target="_blank" rel="noreferrer">
-                      Join
-                    </a>
+                  {m.status === "accepted" && (m.meetingLink || true) ? (
+                    <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+                      {m.meetingLink ? (
+                        <a href={m.meetingLink} target="_blank" rel="noreferrer">
+                          Join
+                        </a>
+                      ) : (
+                        <span style={{ color: "#9ca3af" }}>—</span>
+                      )}
+                      <button
+                        onClick={() => downloadIcs(m._id, `${(m.slot?.day || "meeting")}-${m._id.slice(-5)}`)}
+                        style={linkIcsButton}
+                        title="Download .ics for this meeting"
+                      >
+                        .ics
+                      </button>
+                    </div>
                   ) : (
                     <span style={{ color: "#9ca3af" }}>—</span>
                   )}
@@ -196,7 +230,7 @@ const clearAllNonPending = async () => {
   );
 }
 
-
+/* ------------------------- styles ------------------------- */
 const pageWrap = {
   padding: "32px 16px 72px",
   minHeight: "calc(100vh - 80px)",
@@ -277,7 +311,31 @@ const btnGhost = {
   cursor: "pointer",
 };
 
-const loadingBox = { border: "1px dashed #e5e7eb", borderRadius: 12, padding: 16, color: "#6b7280", background: "#fafafa" };
-const emptyCard = { background: "#fff", border: "1px dashed #e5e7eb", borderRadius: 16, padding: 18, boxShadow: "0 6px 24px rgba(2,6,23,0.04)" };
+const loadingBox = {
+  border: "1px dashed #e5e7eb",
+  borderRadius: 12,
+  padding: 16,
+  color: "#6b7280",
+  background: "#fafafa",
+};
+const emptyCard = {
+  background: "#fff",
+  border: "1px dashed #e5e7eb",
+  borderRadius: 16,
+  padding: 18,
+  boxShadow: "0 6px 24px rgba(2,6,23,0.04)",
+};
 const emptyTitle = { fontWeight: 800, color: "#111827", marginBottom: 6 };
 const emptyText = { color: "#6b7280" };
+
+const linkIcsButton = {
+  appearance: "none",
+  background: "transparent",
+  border: 0,
+  color: "#111827",
+  fontSize: 13,
+  fontWeight: 700,
+  textDecoration: "none",
+  cursor: "pointer",
+  padding: 0,
+};
