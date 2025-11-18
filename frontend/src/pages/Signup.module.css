@@ -1,7 +1,7 @@
 
 .page {
-  min-height: 90vh;
-  display: flex;               
+  min-height: 100vh;
+  display: flex;
   justify-content: center;
   align-items: center;
   padding: 28px;
@@ -11,7 +11,8 @@
     #f6f7fb;
   font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
   color: #0f172a;
-  overflow: hidden;          
+  /* allow scrolling instead of cutting off the bottom */
+  overflow-y: auto;
 }
 
 /* Two-panel layout */
@@ -68,9 +69,10 @@
   max-width: 900px;
   width: 100%;
 
-  max-height: calc(100vh - 205px);
+  /* keep the card inside the viewport and scroll INSIDE it if needed */
+  max-height: calc(100vh - 120px);
   height: auto;
-  overflow: visible;
+  overflow: auto;
 }
 
 .card::-webkit-scrollbar { width: 8px; }

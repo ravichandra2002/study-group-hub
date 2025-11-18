@@ -17,6 +17,9 @@ import Meetings from "./pages/Meetings.jsx";
 import GroupResources from "./pages/GroupResources.jsx";
 import nav from "./components/Navbar.module.css";
 import modal from "./components/Modal.module.css";
+import GroupDiscussions from "./pages/GroupDiscussions.jsx";
+import MyProfile from "./pages/MyProfile.jsx";
+
 
 import api from "./lib/api";
 import { notifySocket, joinUserRoom } from "./lib/socket";
@@ -438,57 +441,85 @@ const handleNotifClick = async (n) => {
           </div>
         </header>
       )}
+{/* LEFT DRAWER + OVERLAY */}
+{isAuthed && (
+  <>
+    <div
+      className={`${nav.drawer} ${drawerOpen ? nav.drawerOpen : ""}`}
+      role="dialog"
+      aria-modal="true"
+      aria-label="Main menu"
+    >
+      <div className={nav.drawerHeader}>
+        <div className={nav.brandMini}>
+          <span className={nav.badge} />
+          <span>Study Group Hub</span>
+        </div>
+        <button
+          className={nav.drawerClose}
+          onClick={closeDrawer}
+          aria-label="Close menu"
+        >
+          ✕
+        </button>
+      </div>
 
-      {/* LEFT DRAWER + OVERLAY */}
-      {isAuthed && (
-        <>
-          <div
-            className={`${nav.drawer} ${drawerOpen ? nav.drawerOpen : ""}`}
-            role="dialog"
-            aria-modal="true"
-            aria-label="Main menu"
-          >
-            <div className={nav.drawerHeader}>
-              <div className={nav.brandMini}>
-                <span className={nav.badge} />
-                <span>Study Group Hub</span>
-              </div>
-              <button className={nav.drawerClose} onClick={closeDrawer} aria-label="Close menu">
-                ✕
-              </button>
-            </div>
+      <nav className={nav.drawerLinks}>
+        <Link
+          className={nav.drawerLink}
+          to="/browse"
+          onClick={closeDrawer}
+        >
+          Browse groups
+        </Link>
+        <Link
+          className={nav.drawerLink}
+          to="/dashboard"
+          onClick={closeDrawer}
+        >
+          My groups
+        </Link>
+        <Link
+          className={nav.drawerLink}
+          to="/availability"
+          onClick={closeDrawer}
+        >
+          Availability
+        </Link>
+        <Link
+          className={nav.drawerLink}
+          to="/meetings"
+          onClick={closeDrawer}
+        >
+          Meetings
+        </Link>
+        {/* NEW: My profile */}
+        <Link
+          className={nav.drawerLink}
+          to="/profile"
+          onClick={closeDrawer}
+        >
+          My profile
+        </Link>
+      </nav>
 
-            <nav className={nav.drawerLinks}>
-              <Link className={nav.drawerLink} to="/browse" onClick={closeDrawer}>
-                Browse groups
-              </Link>
-              <Link className={nav.drawerLink} to="/dashboard" onClick={closeDrawer}>
-                My groups
-              </Link>
-              <Link className={nav.drawerLink} to="/availability" onClick={closeDrawer}>
-                Availability
-              </Link>
-              <Link className={nav.drawerLink} to="/meetings" onClick={closeDrawer}>
-                Meetings
-              </Link>
-            </nav>
+      <div className={nav.drawerFooter}>
+        <button
+          className={nav.drawerLogout}
+          onClick={() => {
+            closeDrawer();
+            setShowLogoutDialog(true);
+          }}
+        >
+          Logout
+        </button>
+      </div>
+    </div>
 
-            <div className={nav.drawerFooter}>
-              <button
-                className={nav.drawerLogout}
-                onClick={() => {
-                  closeDrawer();
-                  setShowLogoutDialog(true);
-                }}
-              >
-                Logout
-              </button>
-            </div>
-          </div>
+    {drawerOpen && <div className={nav.overlay} onClick={closeDrawer} />}
+  </>
+)}
 
-          {drawerOpen && <div className={nav.overlay} onClick={closeDrawer} />}
-        </>
-      )}
 
       {/* Logout modal */}
       {showLogoutDialog && (
@@ -523,6 +554,22 @@ const handleNotifClick = async (n) => {
         <Route path="/availability" element={<ProtectedRoute><Availability /></ProtectedRoute>} />
         <Route path="/meetings" element={<ProtectedRoute><Meetings /></ProtectedRoute>} />
          <Route path="/group/:gid/resources" element={<ProtectedRoute><GroupResources /></ProtectedRoute>} />
+        <Route
+  path="/group/:gid/discussions"
+  element={
+    <ProtectedRoute>
+      <GroupDiscussions />
+    </ProtectedRoute>
+  }
+/>
+<Route
+  path="/profile"
+  element={
+    <ProtectedRoute>
+      <MyProfile />
+    </ProtectedRoute>
+  }
+/>
 
         <Route path="/" element={<Navigate to={isAuthed ? "/dashboard" : "/login"} replace />} />
         <Route path="*" element={<Navigate to={isAuthed ? "/dashboard" : "/login"} replace />} />

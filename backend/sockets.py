@@ -5,6 +5,8 @@ from flask_socketio import Namespace, emit, join_room, leave_room
 from db import get_db, db_for_email
 from helpers import university_from_email
 
+GROUP_ONLINE = {}
+
 
 def _oid(v):
     try:
@@ -66,8 +68,7 @@ def _tenant_db_from_email_or_default(email: str):
 
 
 class ChatNamespace(Namespace):
-
-    # Inside ChatNamespace class, add:
+    # ----------------- helper: notify one user about meetings -----------------
     def emit_meeting_notification(self, receiver_id, message="New meeting request"):
         try:
             room = f"user:{str(receiver_id)}"
@@ -81,11 +82,17 @@ class ChatNamespace(Namespace):
         except Exception as e:
             print("[ws] meeting_notify error:", e)
 
-    # --- user rooms ---------------------------------------------------------
+    # ----------------------------- lifecycle ---------------------------------
     def on_connect(self):
         print("[ws] client connected to /ws/chat")
         emit("connected", {"ok": True})
 
+    def on_disconnect(self):
+        # We don't fully clean GROUP_ONLINE here because we don't know which
+        # groups this socket had joined, but we at least log it.
+        print("[ws] client disconnected from /ws/chat")
+
+    # --------------------------- user rooms ----------------------------------
     def on_join_user(self, data):
         uid = (data or {}).get("userId")
         if not uid:
@@ -106,7 +113,7 @@ class ChatNamespace(Namespace):
         emit("system", {"msg": f"left {room}"})
         return {"ok": True, "room": room}
 
-    # --- group rooms --------------------------------------------------------
+    # --------------------------- group rooms ---------------------------------
     def on_join_group(self, data):
         gid = (data or {}).get("groupId")
         if not gid:
@@ -127,7 +134,86 @@ class ChatNamespace(Namespace):
         emit("system", {"msg": f"left {room}"})
         return {"ok": True, "room": room}
 
-    # --- send message (persist + broadcast) --------------------------------
+    # ----------------------- REAL-TIME PRESENCE ------------------------------
+    def on_presence_join(self, data):
+        """
+        data: {
+          "groupId": "<gid>",
+          "user": { "id": "...", "name": "...", "email": "..." }
+        }
+        """
+        try:
+            data = data or {}
+            gid_s = str(data.get("groupId") or "").strip()
+            user = data.get("user") or {}
+            uid_s = str(user.get("id") or user.get("_id") or "").strip()
+
+            if not gid_s or not uid_s:
+                return {"ok": False, "error": "missing groupId or user.id"}
+
+            room = f"group:{gid_s}"
+            join_room(room)
+
+            now = datetime.utcnow().isoformat() + "Z"
+
+            if gid_s not in GROUP_ONLINE:
+                GROUP_ONLINE[gid_s] = {}
+
+            GROUP_ONLINE[gid_s][uid_s] = {
+                "_id": uid_s,
+                "name": user.get("name"),
+                "email": user.get("email"),
+                "lastSeen": now,
+            }
+
+            online_list = list(GROUP_ONLINE[gid_s].values())
+
+            emit(
+                "presence_update",
+                {"groupId": gid_s, "online": online_list},
+                room=room,
+            )
+            print(
+                f"[ws] presence_join {uid_s} in {room}, now {len(online_list)} online"
+            )
+            return {"ok": True, "onlineCount": len(online_list)}
+        except Exception as e:
+            print("[ws] presence_join error:", e)
+            return {"ok": False, "error": str(e)}
+
+    def on_presence_leave(self, data):
+        """
+        data: { "groupId": "<gid>", "userId": "<uid>" }
+        """
+        try:
+            data = data or {}
+            gid_s = str(data.get("groupId") or "").strip()
+            uid_s = str(data.get("userId") or "").strip()
+            if not gid_s or not uid_s:
+                return {"ok": False, "error": "missing groupId or userId"}
+
+            room = f"group:{gid_s}"
+            leave_room(room)
+
+            if gid_s in GROUP_ONLINE and uid_s in GROUP_ONLINE[gid_s]:
+                GROUP_ONLINE[gid_s].pop(uid_s, None)
+
+            online_list = list(GROUP_ONLINE.get(gid_s, {}).values())
+
+            emit(
+                "presence_update",
+                {"groupId": gid_s, "online": online_list},
+                room=room,
+            )
+            print(
+                f"[ws] presence_leave {uid_s} from {room}, now {len(online_list)} online"
+            )
+            return {"ok": True, "onlineCount": len(online_list)}
+        except Exception as e:
+            print("[ws] presence_leave error:", e)
+            return {"ok": False, "error": str(e)}
+
+    # ------------------- send message (persist + broadcast) ------------------
     def on_group_message(self, data):
         """
         Expected payload from client:
@@ -148,7 +234,6 @@ class ChatNamespace(Namespace):
             if not gid_s or not text or not uid_s:
                 return {"ok": False, "error": "missing fields"}
 
-            # Choose the right tenant DB using email; fallback to request DB.
             db = _tenant_db_from_email_or_default(email)
             _ensure_chat_indexes(db)
 
@@ -157,7 +242,6 @@ class ChatNamespace(Namespace):
             if not gid or not uid:
                 return {"ok": False, "error": "invalid ids"}
 
-            # allow only members to post
             if not _is_member(db, gid, uid):
                 return {"ok": False, "error": "not a member"}
 

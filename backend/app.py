@@ -1,4 +1,3 @@
-# backend/app.py
 from __future__ import annotations
 
 import os
@@ -18,10 +17,10 @@ from pymongo import MongoClient
 from config import Config
 from db import get_db, close_db, bind_request_db
 from sockets import ChatNamespace
-from mailer import send_email  # debug email endpoint
+from mailer import send_email  
+import notify_socket
 
 
-# -------------------- background DB (no request context) ---------------------
 def _bg_db():
     """
     Standalone DB client for the background worker.
@@ -92,6 +91,14 @@ def _register_blueprints(app: Flask) -> None:
     except Exception as e:
         print("[app] failed to import calendar:", e)
 
+    # discussions (mini forum)
+    try:
+        from blueprints.discussions import discussions_bp
+        app.register_blueprint(discussions_bp)
+        print("[app] registered discussions blueprint")
+    except Exception as e:
+        print("[app] failed to import discussions:", e)
+
     # resources (group files/links)
     try:
         from blueprints.resources import resources_bp
@@ -99,6 +106,14 @@ def _register_blueprints(app: Flask) -> None:
         print("[app] registered resources blueprint")
     except Exception as e:
         print("[app] failed to import resources:", e)
+
+    # gamification / study streaks
+    try:
+        from blueprints.streaks import streaks_bp
+        app.register_blueprint(streaks_bp)
+        print("[app] registered streaks blueprint")
+    except Exception as e:
+        print("[app] failed to import streaks:", e)
 
     # groups (REQUIRED; try two locations; no stub)
     last_err = None
@@ -234,14 +249,12 @@ def create_app() -> Flask:
     base_dir = os.path.dirname(os.path.abspath(__file__))
     default_upload_dir = os.path.join(base_dir, "uploads")
 
-    # Resolve from (in order): explicit config, env var, safe default
     cfg_dir = app.config.get("UPLOAD_DIR")
     env_dir = (os.environ.get("UPLOAD_DIR") or "").strip()
 
     upload_dir = (cfg_dir or env_dir or default_upload_dir)
     upload_dir = os.path.abspath(upload_dir)
 
-    # Persist the resolved value so everything reads the same path
     app.config["UPLOAD_DIR"] = upload_dir
     app.config.setdefault("MAX_CONTENT_LENGTH", 16 * 1024 * 1024)  # 16 MB
     os.makedirs(upload_dir, exist_ok=True)
@@ -309,8 +322,10 @@ def _reminders_tick(now_utc: Optional[datetime] = None):
             try:
                 se = _get_user_email(db, sender_id)
                 re = _get_user_email(db, receiver_id)
-                if se: send_email(to=se, subject=subject, html=html, text=text)
-                if re: send_email(to=re, subject=subject, html=html, text=text)
+                if se:
+                    send_email(to=se, subject=subject, html=html, text=text)
+                if re:
+                    send_email(to=re, subject=subject, html=html, text=text)
             except Exception as e:
                 print("[reminder] email error:", e)
 
@@ -347,7 +362,6 @@ def _reminder_loop():
 
 
 def start_reminder_worker(flask_app: Flask):
-    # Use Socket.IO's background task so it survives the debug reloader
     socketio.start_background_task(_reminder_loop)
 
 
