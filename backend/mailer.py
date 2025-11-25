@@ -68,3 +68,37 @@ def send_email(to: str, subject: str, html: str, text: str = ""):
     except Exception as e:
         print("[mailer] generic error:", repr(e))
         return False, str(e)
+def send_password_reset_email(to: str, code: str):
+    """
+    Convenience helper to send a password reset code.
+    Uses the existing send_email() function.
+    """
+    subject = "Study Group Hub – Password reset code"
+
+    text = f"""Hi,
+
+You requested to reset your Study Group Hub password.
+
+Your verification code is: {code}
+
+This code will expire in 10 minutes. If you did not request this, you can ignore this email.
+
+Thanks,
+Study Group Hub Team
+"""
+
+    html = f"""
+    <p>Hi,</p>
+    <p>You requested to reset your <strong>Study Group Hub</strong> password.</p>
+    <p>Your verification code is:
+       <strong style="font-size:20px;letter-spacing:3px;">{code}</strong>
+    </p>
+    <p>This code will expire in <strong>10 minutes</strong>.
+       If you did not request this, you can ignore this email.</p>
+    <p>Thanks,<br/>Study Group Hub Team</p>
+    """
+
+    ok, err = send_email(to, subject, html, text)
+    if not ok:
+        print("[mailer] send_password_reset_email failed:", err)
+    return ok, err

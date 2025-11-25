@@ -3,13 +3,13 @@ import { Link, useNavigate } from "react-router-dom";
 import api from "../lib/api";
 import { toast } from "react-toastify";
 import styles from "./Login.module.css";
-import { FaEye, FaEyeSlash } from "react-icons/fa";  
+import { FaEye, FaEyeSlash } from "react-icons/fa";
 
 export default function Login() {
   const nav = useNavigate();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [showPass, setShowPass] = useState(false); 
+  const [showPass, setShowPass] = useState(false);
 
   useEffect(() => {
     if (localStorage.getItem("token")) nav("/dashboard", { replace: true });
@@ -77,7 +77,16 @@ export default function Login() {
               </button>
             </div>
 
-            <button className={styles.btnPrimary} type="submit">Login</button>
+            {/* NEW: forgot password link */}
+            <div style={{ textAlign: "right", marginTop: 4, marginBottom: 8 }}>
+              <Link to="/forgot-password" style={{ fontSize: 13 }}>
+                Forgot password?
+              </Link>
+            </div>
+
+            <button className={styles.btnPrimary} type="submit">
+              Login
+            </button>
             <span className={styles.helper}>
               New here? <Link to="/signup">Create account</Link>
             </span>
