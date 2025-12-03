@@ -164,7 +164,7 @@ def create_app() -> Flask:
 
     # CORS for Vite dev origin
     client_origin = app.config.get("CLIENT_ORIGIN") or os.environ.get(
-        "CLIENT_ORIGIN", "http://localhost:5173"
+        "CLIENT_ORIGIN", "http://localhost:57799"
     )
     CORS(
         app,
@@ -371,4 +371,4 @@ start_reminder_worker(app)
 
 # ------------------------------- main ----------------------------------------
 if __name__ == "__main__":
-    socketio.run(app, host="0.0.0.0", port=57799, debug=True)
+    socketio.run(app, host="0.0.0.0", port=57977, debug=True)
