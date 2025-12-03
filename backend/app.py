@@ -371,4 +371,4 @@ start_reminder_worker(app)
 
 # ------------------------------- main ----------------------------------------
 if __name__ == "__main__":
-    socketio.run(app, host="0.0.0.0", port=5050, debug=True)
+    socketio.run(app, host="0.0.0.0", port=57799, debug=True)
