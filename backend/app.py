@@ -162,9 +162,22 @@ def create_app() -> Flask:
     app = Flask(__name__)
     app.config.from_object(Config)
 
-    # CORS for Vite dev origin
+    # # CORS for Vite dev origin
+    # client_origin = app.config.get("CLIENT_ORIGIN") or os.environ.get(
+    #     "CLIENT_ORIGIN", "http://localhost:5173"
+    # )
+    # CORS(
+    #     app,
+    #     resources={r"/api/*": {"origins": [client_origin]}},
+    #     methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    #     allow_headers=["Authorization", "Content-Type"],
+    #     expose_headers=["Authorization", "Content-Type", "Content-Disposition"],
+    #     supports_credentials=False,
+    # )
+
+        # CORS for Vite prod origin
     client_origin = app.config.get("CLIENT_ORIGIN") or os.environ.get(
-        "CLIENT_ORIGIN", "http://localhost:5173"
+        "CLIENT_ORIGIN", "http://cassini.cs.kent.edu"
     )
     CORS(
         app,

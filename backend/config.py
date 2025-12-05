@@ -12,8 +12,11 @@ class Config:
     # --- MongoDB ---
     MONGO_URI = os.getenv("MONGO_URI", "")
 
-    # --- Frontend Origin (Vite default) ---
-    CLIENT_ORIGIN = os.getenv("CLIENT_ORIGIN", "http://localhost:5173")
+    # # --- Frontend Origin (Vite default) ---
+    # CLIENT_ORIGIN = os.getenv("CLIENT_ORIGIN", "http://localhost:5173")
+
+       # --- Frontend Origin (Vite prod) ---
+    CLIENT_ORIGIN = os.getenv("CLIENT_ORIGIN", "http://cassini.cs.kent.edu")
 
     # --- Email / SMTP Configuration ---
     SMTP_HOST = os.getenv("SMTP_HOST", "smtp.gmail.com")

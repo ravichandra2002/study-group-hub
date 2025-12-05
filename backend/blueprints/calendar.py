@@ -174,10 +174,12 @@ def calendar_feed(token: str):
         return Response(body, status=200, headers={
             "Content-Type": "text/calendar; charset=utf-8",
             "Content-Disposition": 'attachment; filename="study-group-hub.ics"',
-            "Access-Control-Allow-Origin": os.getenv("CLIENT_ORIGIN", "http://localhost:5173"),
+            # "Access-Control-Allow-Origin": os.getenv("CLIENT_ORIGIN", "http://localhost:5173"),
+             "Access-Control-Allow-Origin": os.getenv("CLIENT_ORIGIN", "http://cassini.cs.kent.edu"),
         })
     except Exception as e:
         current_app.logger.exception("calendar/feed failed")
         return Response(f"ICS error: {e}", status=500, headers={
-            "Access-Control-Allow-Origin": os.getenv("CLIENT_ORIGIN", "http://localhost:5173"),
+            # "Access-Control-Allow-Origin": os.getenv("CLIENT_ORIGIN", "http://localhost:5173"),
+             "Access-Control-Allow-Origin": os.getenv("CLIENT_ORIGIN", "http://cassini.cs.kent.edu"),
         })
